@@ -390,7 +390,7 @@ namespace CTF_int {
     TAU_FSTART(bcast);
     MPI_Bcast(buf, count, mdtype, root, cm);
     MPI_Barrier(cm);
-    TAU_FSTART(bcast);
+    TAU_FSTOP(bcast);
 #ifdef TUNE
     MPI_Barrier(cm);
     double exe_time = MPI_Wtime()-st_time;
