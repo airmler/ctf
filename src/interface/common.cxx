@@ -387,7 +387,10 @@ namespace CTF_int {
 #ifdef TUNE
     double st_time = MPI_Wtime();
 #endif
+    TAU_FSTART(bcast);
     MPI_Bcast(buf, count, mdtype, root, cm);
+    MPI_Barrier(cm);
+    TAU_FSTART(bcast);
 #ifdef TUNE
     MPI_Barrier(cm);
     double exe_time = MPI_Wtime()-st_time;
