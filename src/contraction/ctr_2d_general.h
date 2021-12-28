@@ -68,6 +68,8 @@ namespace CTF_int{
       CommData * cdt_A;
       CommData * cdt_B;
       CommData * cdt_C;
+
+
       /* Class to be called on sub-blocks */
       ctr * rec_ctr;
       
@@ -81,6 +83,19 @@ namespace CTF_int{
        *  where b is the smallest blocking factor among A and B or A and C or B and C. 
        */
       void run(char * A, char * B, char * C);
+      /**
+       * \brief interchanges processors in the communicator -> permuting
+       *  the data such that each communicator has adjacent global ranks
+       */
+      void blockComm( int const *rgrid, char *A, char *B, char *C
+                    , size_t sizeA, size_t sizeB, size_t sizeC
+                    , CommData globalComm, std::vector<int> &swap);
+
+      /**
+       * \brief returns the number of nodes & number of ranks per node
+       *        note: only trustworthy if ranks per node is the same for all nodes!!
+       */
+      ipair getNumNodes(MPI_Comm comm);
       /**
        * \brief returns the number of bytes of buffer space
        *  we need 

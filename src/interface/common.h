@@ -14,6 +14,7 @@
 #include <iostream>
 #include <limits.h>
 #include <random>
+#include <cfloat>
 
 #include "../shared/model.h"
 
@@ -240,6 +241,24 @@ namespace CTF_int {
                        int64_t const * recv_displs);
 
   };
+
+  using ipair = std::pair<int,int>;
+  struct CommGrid {
+    CommGrid(){};
+    ~CommGrid(){};
+    CommGrid(ipair _rGrid, int _nNodes);
+
+    int nRanks;
+    std::vector<ipair> colorKey;
+    ipair rGrid; // RankGrid: given by the user
+    ipair nGrid; // NodeGrid: output, grid of nodes
+    ipair iGrid; // intraNodeGrid: the ranks of one node possess this grid
+
+    ipair getNodeGrid(int nNodes, ipair rGrid);
+    std::vector<int> factorize(int number);
+    ipair getSquare(int id, std::vector<int> factors);
+  };
+
 
   int  alloc_ptr(int64_t len, void ** const ptr);
   int  mst_alloc_ptr(int64_t len, void ** const ptr);

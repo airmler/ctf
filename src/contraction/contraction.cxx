@@ -4463,6 +4463,12 @@ namespace CTF_int {
   #endif
     TAU_FSTART(ctr_func);
     /* Invoke the contraction algorithm */
+    TAU_FSTART(blockComm);
+    std::vector<int> swap;
+    ctrf->blockComm( A->topo->lens, A->data, B->data, C->data
+		   , A->size, B->size, C->size, global_comm, swap);
+    MPI_Barrier(global_comm.cm);
+    TAU_FSTOP(blockComm);
     A->topo->activate();
 
   #ifdef PROFILE_MEMORY
@@ -4547,7 +4553,12 @@ namespace CTF_int {
   #endif
 
 
-    A->topo->deactivate();
+//    A->topo->deactivate();
+    TAU_FSTART(blockComm);
+    MPI_Barrier(global_comm.cm);
+    ctrf->blockComm( A->topo->lens, A->data, B->data, C->data
+                   , A->size, B->size, C->size, global_comm, swap);
+    TAU_FSTOP(blockComm);
 
   #ifdef PROFILE
     TAU_FSTART(post_ctr_func_barrier);

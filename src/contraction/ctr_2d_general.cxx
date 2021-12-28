@@ -472,5 +472,113 @@ namespace CTF_int {
     }
     TAU_FSTOP(ctr_2d_general);
   }
+
+  void ctr_2d_general::blockComm( int const * rgrid, char *A, char *B, char *C
+                                , size_t sizeA, size_t sizeB, size_t sizeC
+                                , CommData glb_comm, std::vector<int> &swap
+  ){
+    int rank = glb_comm.rank;
+    int np = glb_comm.np;
+    int src, dst;
+    // we have to determine the partners
+    if (! swap.size() ) {
+      ipair nr(getNumNodes(glb_comm.cm));
+      // rGrid is the rankGrid of the given tensor topology
+      CommGrid grid({rgrid[0], rgrid[1]}, nr.first);
+      ipair nGrid = grid.nGrid;
+      ipair iGrid = grid.iGrid;
+      // rr is the key/color pair for the original rank distribution of dim_comm[0]
+      std::vector<ipair> rr(np);
+      std::vector< std::pair<ipair, int> > perm(np);
+      for (int r(0); r < np; r++) rr[r] = { r % rgrid[0], r / rgrid[0] };
+      // the desired distribution are nGrid[0] x nGrid[1] blocks with the some color
+      for (int r(0); r < np; r++){
+        // the color is the jth column and kth row in the nodeGrid
+        int clr = (rr[r].second/iGrid.second)*nGrid.first + rr[r].first/iGrid.first;
+        int key = (rr[r].second%iGrid.second)*iGrid.first + rr[r].first%iGrid.first;
+       // we have to swap color and key that we can use std::sort
+        perm[r] = { { clr, key }, r};
+      }
+      std::sort(perm.begin(), perm.end());
+      for (auto p: perm) swap.push_back(p.second);
+
+      src = swap[rank];
+      auto it( std::find(swap.begin(), swap.end(), rank) );
+      dst = std::distance(swap.begin(), it);
+    }
+    else {
+      dst = swap[rank];
+      auto it( std::find(swap.begin(), swap.end(), rank) );
+      src = std::distance(swap.begin(), it);
+    }
+
+    MPI_Barrier(glb_comm.cm);
+    MPI_Status s;
+    MPI_Sendrecv_replace(&cdt_A->color, 1, MPI_INT, dst, 0, src, 0, glb_comm.cm, &s);
+    MPI_Sendrecv_replace(&cdt_B->color, 1, MPI_INT, dst, 0, src, 0, glb_comm.cm, &s);
+    MPI_Sendrecv_replace(&cdt_A->rank,  1, MPI_INT, dst, 0, src, 0, glb_comm.cm, &s);
+    MPI_Sendrecv_replace(&cdt_B->rank,  1, MPI_INT, dst, 0, src, 0, glb_comm.cm, &s);
+
+    MPI_Barrier(glb_comm.cm);
+
+    size_t el(std::max(sizeA, sizeB));
+    el = std::max(el, sizeC);
+    char *buf = new char[el*sr_A->el_size];
+    // Do the A job
+    MPI_Request sreq, rreq;
+    MPI_Irecv(buf, sizeA, sr_A->mdtype(), src, 0, glb_comm.cm, &rreq);
+    MPI_Isend(A,   sizeA, sr_A->mdtype(), dst, 0, glb_comm.cm, &sreq);
+    MPI_Wait(&rreq, MPI_STATUS_IGNORE);
+    MPI_Wait(&sreq, MPI_STATUS_IGNORE);
+    memcpy(A, buf, sizeA*sr_A->el_size);
+
+    // Do the B job
+    MPI_Irecv(buf, sizeB, sr_A->mdtype(), src, 0, glb_comm.cm, &rreq);
+    MPI_Isend(B,   sizeB, sr_A->mdtype(), dst, 0, glb_comm.cm, &sreq);
+    MPI_Wait(&rreq, MPI_STATUS_IGNORE);
+    MPI_Wait(&sreq, MPI_STATUS_IGNORE);
+    memcpy(B, buf, sizeB*sr_A->el_size);
+
+    // Do the B job
+    MPI_Irecv(buf, sizeC, sr_A->mdtype(), src, 0, glb_comm.cm, &rreq);
+    MPI_Isend(C,   sizeC, sr_A->mdtype(), dst, 0, glb_comm.cm, &sreq);
+    MPI_Wait(&rreq, MPI_STATUS_IGNORE);
+    MPI_Wait(&sreq, MPI_STATUS_IGNORE);
+    memcpy(C, buf, sizeC*sr_A->el_size);
+    MPI_Barrier(glb_comm.cm);
+  }
+
+  ipair ctr_2d_general::getNumNodes(MPI_Comm comm){
+    int rank, np;
+    MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &np);
+
+    std::vector<std::string> nodeList(np);
+    char nodeName[MPI_MAX_PROCESSOR_NAME];
+    char nodeNames[np*MPI_MAX_PROCESSOR_NAME];
+    std::vector<int> nameLengths(np);
+    std::vector<int> off(np);
+    int nameLength;
+    MPI_Get_processor_name(nodeName, &nameLength);
+    MPI_Allgather(
+      &nameLength, 1, MPI_INT, nameLengths.data(), 1, MPI_INT, comm
+    );
+    for (int i(1); i < np; i++) off[i] = off[i-1] + nameLengths[i-1];
+    MPI_Allgatherv(
+      nodeName, nameLengths[rank], MPI_BYTE, nodeNames,
+      nameLengths.data(), off.data(), MPI_BYTE, comm
+    );
+    for (int i(0); i < np; i++) {
+      std::string s(&nodeNames[off[i]], nameLengths[i]);
+      nodeList[i] = s;
+    }
+    std::sort(nodeList.begin(), nodeList.end());
+    std::vector<std::string>::iterator it(
+      std::unique(nodeList.begin(), nodeList.end())
+    );
+    size_t nNodes(std::distance(nodeList.begin(), it));
+    return {nNodes, np/nNodes};
+  }
+
 }
 

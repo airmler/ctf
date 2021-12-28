@@ -200,7 +200,9 @@ namespace CTF_int{
       virtual double est_time_fp(int nlyr) { return 0; };
       virtual double est_time_rec(int nlyr) { return est_time_fp(nlyr); };
       virtual ctr * clone() { return NULL; };
-      
+      virtual void blockComm( int const *rgrid, char *A, char *B, char *C
+                            , size_t sizeA, size_t sizeB, size_t sizeC
+                            , CommData globalComm, std::vector<int> &swap) {};
       /**
        * \brief deallocates generic ctr object
        */

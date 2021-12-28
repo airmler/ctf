@@ -571,6 +571,110 @@ namespace CTF_int {
     alltoallv_mdl.observe(tps);
   }
 
+
+  CommGrid::CommGrid(ipair _rGrid, int _nNodes){
+    nRanks = _rGrid.first*_rGrid.second;
+    colorKey.resize(nRanks);
+    nGrid = getNodeGrid(_nNodes, _rGrid);
+    rGrid = _rGrid;
+    iGrid.first  = rGrid.first / nGrid.first;
+    iGrid.second = rGrid.second / nGrid.second;
+    assert(colorKey.size() == iGrid.first*iGrid.second*_nNodes);
+  }
+
+  ipair CommGrid::getNodeGrid(int nNodes, ipair rGrid){
+    ipair nGrid({1, 1});
+    std::vector<int> facNodes(CommGrid::factorize(nNodes));
+    std::vector<int> facrgf(CommGrid::factorize(rGrid.first));
+    std::vector<int> facrgs(CommGrid::factorize(rGrid.second));
+    std::vector<int> diff;
+
+    // We are selecting all prim factors of #nodes
+    // which do not occur in the prim factors of a grid edge
+    // we remove these factors and assign them to the opponent grid edge
+
+    std::set_difference( facNodes.begin(), facNodes.end()
+                       , facrgf.begin(), facrgf.end()
+                       , std::back_inserter(diff)
+                       );
+
+   for (auto d: diff)
+      facNodes.erase(std::find(facNodes.begin(), facNodes.end(), d));
+
+    nGrid.second =
+      std::accumulate(diff.begin(), diff.end(), 1, std::multiplies<int>());
+    diff.resize(0);
+
+    std::set_difference( facNodes.begin(), facNodes.end()
+                       , facrgs.begin(), facrgs.end()
+                       , std::back_inserter(diff)
+                       );
+    for (auto d: diff)
+      facNodes.erase(std::find(facNodes.begin(), facNodes.end(), d));
+
+    nGrid.first =
+      std::accumulate(diff.begin(), diff.end(), 1, std::multiplies<int>());
+
+    // if there is no element left, all prim factors are distributed
+    if (!facNodes.size()) return nGrid;
+    //assign the remaining prim factors as such that the grid on every
+    //node is closest possible to a square
+    double minVal(DBL_MAX);
+    ipair bestPair;
+    for (int i(0); i < pow(2, facNodes.size()); i++){
+      ipair edges(CommGrid::getSquare(i, facNodes));
+      // build igrid.first / igrid.second and take the one with
+      // a ratio closest to one
+      //its not true that the node grid candidates are divisor of the rGrid:
+      //we allow only these edges
+      int first(edges.first*nGrid.first);
+      int second(edges.second*nGrid.second);
+      if ( (nRanks/first)*first != nRanks) continue;
+      if ( (nRanks/second)*second != nRanks) continue;
+
+      double val(1.0/(double)first  + 1.0/(double)second);
+      if ( minVal > val ){
+        minVal = val;
+        bestPair = {edges.first, edges.second};
+      }
+    }
+    nGrid.first  *= bestPair.first;
+    nGrid.second *= bestPair.second;
+    return nGrid;
+  }
+
+  std::vector<int> CommGrid::factorize(int number){ 
+    std::vector<int> factors;
+    int n(number);
+    if (n < 4) factors.push_back(n);
+    int d(2);
+    while (d*d <= n)
+    while (n>1){
+      while (!(n%d)){
+        factors.push_back(d);
+        n /= d;
+      }
+      d++;
+    }
+    return factors;
+  }
+
+  ipair CommGrid::getSquare(int id, std::vector<int> factors) {
+    ipair result({1,1});
+    result.second = std::accumulate(
+      factors.begin(), factors.end(), 1, std::multiplies<double>()
+    );
+    for (int pos(0); ; pos++) {
+      int bit(pow(2,pos));
+      if (bit > id) break;
+      if(id & bit) result.first *= factors[pos];
+    }
+    result.second /= result.first;
+    return result;
+  }
+
+
+
   char * get_default_inds(int order, int start_index){
     char * inds = (char*)CTF_int::alloc(order*sizeof(char));
     for (int i=0; i<order; i++){
