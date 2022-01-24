@@ -15,6 +15,7 @@
 #define CTF_VERSION 155
 
 #include "../src/interface/tensor.h"
+#include "../src/interface/bstensor.h"
 #include "../src/interface/idx_tensor.h"
 #include "../src/interface/timer.h"
 #include "../src/interface/back_comp.h"
