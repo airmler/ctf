@@ -56,7 +56,7 @@ namespace CTF {
       tensors.push_back(
         new CTF_int::tensor(&sr_, order_, len_, sym_, world_, 1, this->name, profile_)
       );
-    } 
+    }
     IASSERT(sizeof(dtype)==sr_.el_size);
   }
 
@@ -75,7 +75,7 @@ namespace CTF {
 
   template<typename dtype>
   bsTensor<dtype>::~bsTensor(){
-    for (auto &t: tensors) { 
+    for (auto &t: tensors) {
 //      delete t;
     }
     CTF_int::cdealloc(lens);
@@ -87,7 +87,7 @@ namespace CTF {
   template<typename dtype>
   void bsTensor<dtype>::read(int64_t         npair,
                              int64_t const * global_idx,
-                             dtype *         data, 
+                             dtype *         data,
                              int64_t const   block,
                              CTF_int::algstrct const &sr)
   {
@@ -104,7 +104,7 @@ namespace CTF {
   void bsTensor<dtype>::write(int64_t         npair,
                               int64_t const * global_idx,
                               dtype const   * data,
-                              int64_t const   block, 
+                              int64_t const   block,
                               CTF_int::algstrct const & sr)
   {
     IASSERT(block>=0); //not implemented yet
@@ -137,12 +137,12 @@ namespace CTF {
       ivec c(n), d(n);
       for (size_t i(0); i < n - 1; i++){
         c[i] = a[p[i]]; d[i] = b[p[i]];
-      } 
+      }
       return c < d;
     };
   }
 
- 
+
   template<typename dtype>
   std::function<int(const ivec &)>
   bsTensor<dtype>::find(const ivec c, const ivec p, const size_t n)
@@ -153,8 +153,8 @@ namespace CTF {
       return true;
     };
   }
-  
- 
+
+
   template<typename dtype>
   size_t bsTensor<dtype>::orderToN(ivec o){
     size_t p(0);
@@ -191,9 +191,9 @@ namespace CTF {
     idx[order] = order;
 
     auto nzA = A.nonZeroCondition;
-    auto p = orderToN(idx);    
+    auto p = orderToN(idx);
     std::sort(nzA.begin(), nzA.end(), compare(idx));
- 
+
     for (int i(0); i < this->nBlocks; i++){
       idA[i] = nzA[i][order];
       if (verbose){
@@ -202,7 +202,7 @@ namespace CTF {
         printf("| %d -> ", this->nonZeroCondition[i][order]);
         for (int j(0); j < order; j++) printf("%d ", nzA[i][j]);
         printf(" | %d\n", idA[i]);
-      } 
+      }
     }
 
     for (int i(0); i < this->nBlocks; i++){
@@ -239,9 +239,9 @@ namespace CTF {
     idx[order] = order;
 
     auto nzA = A.nonZeroCondition;
-    auto p = orderToN(idx);    
+    auto p = orderToN(idx);
     std::sort(nzA.begin(), nzA.end(), compare(idx));
- 
+
     for (int i(0); i < this->nBlocks; i++){
       idA[i] = nzA[i][order];
       if (verbose){
@@ -250,7 +250,7 @@ namespace CTF {
         printf("| %d -> ", this->nonZeroCondition[i][order]);
         for (int j(0); j < order; j++) printf("%d ", nzA[i][j]);
         printf(" | %d\n", idA[i]);
-      } 
+      }
     }
 
     for (int i(0); i < this->nBlocks; i++){
@@ -271,7 +271,7 @@ namespace CTF {
                             bsTensor<dtype> & A,
                             char const *      cidx_A,
                             dtype             beta,
-                            char const *      cidx_B, 
+                            char const *      cidx_B,
                             std::vector<ivec> nonZeroA,
                             std::vector<ivec> nonZeroB,
                             bool              verbose) {
@@ -304,8 +304,8 @@ namespace CTF {
         printf("| %d -> ", nzIdxA[i]);
         for (int j(0); j < order; j++) printf("%d ", nonZeroB[i][j]);
         printf(" | %d\n", nzIdxB[i]);
-      } 
- 
+      }
+
    }
 
     for (int64_t i(0); i < nonZeroA.size(); i++){
@@ -314,7 +314,7 @@ namespace CTF {
             A.tensors[nzIdxA[i]], cidx_A, (char*)&alpha,
             this->tensors[nzIdxB[i]], cidx_B, (char*)&beta
           );
-  
+
       sum.execute();
     }
     free(nzIdxA);
@@ -326,7 +326,7 @@ namespace CTF {
                             bsTensor<dtype>  &     A,
                             char const *           cidx_A,
                             dtype                  beta,
-                            char const *           cidx_B, 
+                            char const *           cidx_B,
                             std::vector<ivec>      nonZeroA,
                             std::vector<ivec>      nonZeroB,
                             Univar_Function<dtype> fseq,
@@ -336,7 +336,7 @@ namespace CTF {
     IASSERT(nonZeroA.size() == nonZeroB.size());
     int *nzIdxA = new int[nBlocks];
     int *nzIdxB = new int[nBlocks];
- 
+
     checkDublicate(cidx_A);
     checkDublicate(cidx_B);
 
@@ -363,8 +363,8 @@ namespace CTF {
         printf("| %d -> ", nzIdxA[i]);
         for (int j(0); j < order; j++) printf("%d ", nonZeroB[i][j]);
         printf(" | %d\n", nzIdxB[i]);
-      } 
- 
+      }
+
    }
 
    for (int64_t i(0); i < nonZeroA.size(); i++){
@@ -373,7 +373,7 @@ namespace CTF {
            A.tensors[nzIdxA[i]], cidx_A, (char*)&alpha,
            this->tensors[nzIdxB[i]], cidx_B, (char*)&beta, fseq
          );
-  
+
      sum.execute();
    }
     free(nzIdxA);
@@ -405,14 +405,14 @@ namespace CTF {
       for (int j(0); j < B.order; j++)
         if ( cidx_B[j] == c) { idxB[bb++] = j; cb.push_back({i,j}); }
     }
-    
+
     for (int i(0); i < this->order; i++) printf("%c",cidx_C[i]);
     printf(" = ");
     for (int i(0); i < A.order; i++) printf("%c",cidx_A[i]);
     printf(" x ");
     for (int i(0); i < B.order; i++) printf("%c",cidx_B[i]);
     printf("\n");
-  
+
     // this is the number of indices which appear on the lhs
     int lhsA(aa), lhsB(bb);
     int rhs(A.order - aa);
@@ -448,7 +448,7 @@ namespace CTF {
       for (size_t p(0); p < A.order; p++) printf("%d ", n[p]);
       printf("\n");
     }
- 
+
     printf("========\n");
 */
     auto nzB = B.nonZeroCondition;
@@ -480,7 +480,7 @@ namespace CTF {
                                  );
       auto endB   = std::distance( nzB.begin()
                                  , std::find_if_not( nzB.begin() + beginB
-                                                   , nzB.end() 
+                                                   , nzB.end()
                                                    , find(nzC[n], idxB, lhsB)
                                                    )
                                  );
