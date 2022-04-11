@@ -2,6 +2,7 @@
 
 #include "../tensor/untyped_tensor.h"
 #include "bstensor.h"
+#include <cstring>
 #ifdef _OPENMP
 #include "omp.h"
 #endif
@@ -46,7 +47,7 @@ namespace CTF {
       this->name[6] = '\0';
     }
     nBlocks = nonZero_.size();
-    IASSERT(nBlocks>0);
+    if (nBlocks <= 0) { printf("Tensor %s", this->name); IASSERT(nBlocks>0);};
     int i(0);
     for (auto nz: nonZero_){
       IASSERT(nz.size()==order_);
@@ -101,18 +102,46 @@ namespace CTF {
 
 
   template<typename dtype>
+  void bsTensor<dtype>::read_all(dtype *         data, int64_t const block)
+  {
+//    IASSERT(block>=0); //not implemented yet
+    IASSERT(block< this->nBlocks);
+    int64_t npair;
+    printf("We have %ld blocks\n", this->nBlocks);
+    for (auto nz: this->nonZeroCondition) {
+      for (auto a: nz) printf("%d ", a);
+      printf("\n");
+    }
+    this->tensors[0]->allread(&npair, (char *) data, false);
+  }
+
+
+
+  template<typename dtype>
   void bsTensor<dtype>::write(int64_t         npair,
                               int64_t const * global_idx,
                               dtype const   * data,
                               int64_t const   block,
                               CTF_int::algstrct const & sr)
   {
-    IASSERT(block>=0); //not implemented yet
+
     IASSERT(block< this->nBlocks);
-    this->tensors[block]->write(
-      npair, sr.mulid(), sr.addid(),
-      (const int64_t *) global_idx,(const char*) data
-    );
+    if (block < 0){
+      // in this case it is assumed that all data (npair elements)
+      // WATCH OUT: it is assumed that the global_idx is the same
+      //            for all different blocks!!!
+      // it is assumed that global_idx
+      size_t i(0);
+      for (auto &t: this->tensors)
+        t->write( npair, sr.mulid(), sr.addid()
+                , (const int64_t *) global_idx, (const char *) &data[(i++)*npair]
+                );
+    } else{
+      this->tensors[block]->write(
+        npair, sr.mulid(), sr.addid(),
+        (const int64_t *) global_idx,(const char*) data
+      );
+    }
   }
 
 
@@ -175,7 +204,13 @@ namespace CTF {
                             dtype                  beta,
                             char const *           cidx_B,
                             bool                   verbose) {
-    IASSERT(this->order == A.order);
+// allow the left side to be larger than the right side
+// A["ijab"] = epsi["i"] means: write for every jab the value of epsi for the given "i"
+// the same is true for the nonZero blocks. Every
+    if (this->order != A.order) {
+      printf("Problems with tensor order of tensors %s %s", this->name, A.name);
+      IASSERT(this->order == A.order);
+    }
     int nBlocks = this->nBlocks;
     ivec idA(nBlocks);
     IASSERT(this->nBlocks == A.nBlocks);
@@ -257,7 +292,7 @@ namespace CTF {
       CTF_int::summation sum
         = CTF_int::summation(
             A.tensors[idA[i]], cidx_A, (char*)&alpha,
-            this->tensors[i], cidx_B, (char*)&beta,fseq
+            this->tensors[i], cidx_B, (char*)&beta,&fseq
           );
       sum.execute();
     }
@@ -487,23 +522,24 @@ namespace CTF {
       auto els(endA-beginA);
       IASSERT(els == endB - beginB);
 
-      if (verbose){
-        for (size_t p(0); p < this->order; p++) printf("%d", nzC[n][p]);
-        printf("(%2d)", nzC[n][this->order]);
-        printf(" = ");
-        for (size_t i(0); i < els; i++){
+      for (size_t p(0); p < this->order; p++) printf("%d", nzC[n][p]);
+      if (verbose) printf("(%2d)", nzC[n][this->order]);
+      if (verbose) printf(" = ");
+      for (size_t i(0); i < els; i++){
+        if (verbose){
           if (i) printf(" + ");
           for (size_t p(0); p < A.order; p++) printf("%d", nzA[beginA+i][p]);
           printf("(%2d)", nzA[beginA+i][A.order]);
           printf(" x ");
           for (size_t p(0); p < B.order; p++) printf("%d", nzB[beginB+i][p]);
           printf("(%2d)", nzB[beginB+i][B.order]);
-          tasks.push_back(
-            {nzC[n][this->order], nzA[beginA+i][A.order], nzB[beginB+i][B.order]}
-          );
         }
-        printf("\n");
+        tasks.push_back(
+          {nzC[n][this->order], nzA[beginA+i][A.order], nzB[beginB+i][B.order]}
+        );
       }
+      if (verbose) printf("\n");
+
     }
     printf("=====\n");
     for (auto t: tasks){
@@ -519,15 +555,27 @@ namespace CTF {
 
 
 
-//  template<typename dtype>
-//  void Tensor<dtype>::slice(int const *             offsets,
-//                            int const *             ends,
-//                            dtype                   beta,
-//                            CTF_int::tensor const & A,
-//                            int const *             offsets_A,
-//                            int const *             ends_A,
-//                            dtype                   alpha){
-//  }
+  template<typename dtype>
+  void bsTensor<dtype>::slice(int64_t const *        offsets,
+                              int64_t const *        ends,
+                              dtype                  beta,
+                              bsTensor<dtype> const &A,
+                              int64_t const *        offsets_A,
+                              int64_t const *        ends_A,
+                              dtype                  alpha){
+
+    // make sure that the tensors
+    IASSERT(this->nBlocks == A.nBlocks);
+    for (int i(0); i < this->nBlocks; i++)
+      IASSERT( this->nonZeroCondition[i] == A.nonZeroCondition[i] );
+
+
+
+    for (int i(0); i < this->nBlocks; i++){
+      this->tensors[i]->slice(
+        offsets, ends, (char*)&beta, A.tensors[i], offsets_A, ends_A, (char*)&alpha);
+    }
+  }
 //
 //  template<typename dtype>
 //  void Tensor<dtype>::contract(dtype            alpha,

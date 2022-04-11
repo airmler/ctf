@@ -54,6 +54,11 @@ namespace CTF {
                 CTF_int::algstrct const & sr=Ring<dtype>()
                );
 
+
+      void read_all(dtype *         data, int64_t const block=-1);
+
+
+
       /**
        * \brief writes in values associated with any set of indices
        * The sparse data is defined in coordinate format. The tensor index (i,j,k,l) of a tensor with edge lengths
@@ -97,9 +102,13 @@ namespace CTF {
        * \param[in] ends top right corner of block
        * \return new tensor corresponding to requested slice
        */
-      //TODO
-      //Tensor<dtype> slice(int const * offsets,
-      //                    int const * ends) const;
+      void slice(int64_t const * offsets,
+                 int64_t const * ends,
+                 dtype           beta,
+                 bsTensor<dtype> const &A,
+                 int64_t const * offsets_A,
+                 int64_t const * ends_A,
+                 dtype           alpha );
 
 
       /**
