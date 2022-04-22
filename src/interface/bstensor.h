@@ -204,7 +204,7 @@ namespace CTF {
       void checkDublicate(std::string t);
       size_t orderToN(ivec o);
       std::function<int(const ivec &, const ivec &)> compare(const ivec p);
-      std::function<int(const ivec &)> find(const ivec, const ivec, const size_t);
+      std::function<int(const ivec &)> find(const ivec, const std::vector< std::pair<int,int> >);
 
 
       /**

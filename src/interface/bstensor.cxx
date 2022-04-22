@@ -107,7 +107,7 @@ namespace CTF {
 //    IASSERT(block>=0); //not implemented yet
     IASSERT(block< this->nBlocks);
     int64_t npair;
-    printf("We have %ld blocks\n", this->nBlocks);
+    printf("read_all:We have %ld blocks:\n", this->nBlocks);
     for (auto nz: this->nonZeroCondition) {
       for (auto a: nz) printf("%d ", a);
       printf("\n");
@@ -154,7 +154,7 @@ namespace CTF {
   void bsTensor<dtype>::checkDublicate(std::string t){
     std::sort(t.begin(), t.end());
     auto it = std::unique(t.begin(), t.end());
-    if (it != t.end()) assert(0);
+    if (it != t.end()) IASSERT(0);
   }
 
   template<typename dtype>
@@ -174,27 +174,14 @@ namespace CTF {
 
   template<typename dtype>
   std::function<int(const ivec &)>
-  bsTensor<dtype>::find(const ivec c, const ivec p, const size_t n)
+  bsTensor<dtype>::find(const ivec c, const std::vector< std::pair<int,int> > ca)
   {
-    return [c, p, n] (const ivec &a) -> int {
-      for (size_t i(0); i < n; i++)
-        if ( a[p[i]] != c[p[i]]) return false;
+    return [c, ca] (const ivec &a) -> int {
+      for (size_t i(0); i < ca.size(); i++)
+      for (auto &x: ca)  if ( a[x.second] != c[x.first]) return false;
       return true;
     };
   }
-
-
-  template<typename dtype>
-  size_t bsTensor<dtype>::orderToN(ivec o){
-    size_t p(0);
-    size_t f(1);
-    for (size_t i(0); i < o.size(); i++){
-      p += o[i] * f;
-      f *= o.size();
-    }
-    return p;
-  }
-
 
 
   template<typename dtype>
@@ -204,38 +191,80 @@ namespace CTF {
                             dtype                  beta,
                             char const *           cidx_B,
                             bool                   verbose) {
-// allow the left side to be larger than the right side
-// A["ijab"] = epsi["i"] means: write for every jab the value of epsi for the given "i"
-// the same is true for the nonZero blocks. Every
-    if (this->order != A.order) {
-      printf("Problems with tensor order of tensors %s %s", this->name, A.name);
-      IASSERT(this->order == A.order);
-    }
-    int nBlocks = this->nBlocks;
-    ivec idA(nBlocks);
-    IASSERT(this->nBlocks == A.nBlocks);
+// this whole algorithm works only if B.nonZeroCondition is sorted!!
+// sum can be either a permutation
+// a) B["Gia"] = A["Gai"]
+// or an expression like
+// b) B["ijab"] = A["i"]
+// in both cases we have to find the correct non-zero block summation
+
+    ivec idA(this->nBlocks);
+    ivec idB(this->nBlocks);
+    // TODO: we have to resolve this assert. if the right side has an higher
+    //       order, it implies a sum over the additional index
+    IASSERT(this->order >= A.order);
+    IASSERT(this->nBlocks >= A.nBlocks);
     checkDublicate(cidx_A);
     checkDublicate(cidx_B);
     std::string idxA(cidx_A);
     std::string idxB(cidx_B);
-    std::vector<int> idx(order+1);
-    for (int i(0); i < order; i++){
-      auto p = std::find(std::begin(idxA), std::end(idxA), idxB[i]);
-      idx[i] = std::distance(std::begin(idxA), p);
+   // These are the nonZeroIndices for A
+    // We initialize these indices as the nonZeroCondition of B
+    auto nzA(this->nonZeroCondition);
+    auto nzB(this->nonZeroCondition);
+    // idx maps the indices on the left with the incides on the right
+    std::vector<int> idx;
+    // it is to find the indices of B in tensor A
+    for (int i(0); i < A.order; i++){
+      auto it = std::find( std::begin(idxB), std::end(idxB), idxA[i]);
+      if (it == std::end(idxB)) continue;
+      idx.push_back(std::distance( std::begin(idxB), it));
     }
-    idx[order] = order;
 
-    auto nzA = A.nonZeroCondition;
-    auto p = orderToN(idx);
-    std::sort(nzA.begin(), nzA.end(), compare(idx));
-
+    if (this->order == A.order){
+      // i.e.: B["Gia"] = A["Gai"] -> idx: 0,2,1
+      // we sort nzA according to the indices-sequence in idx
+      if (verbose) { for (auto i: idx) printf("%d ", i); std::cout << std::endl;}
+      std::sort(nzA.begin(), nzA.end(), compare(idx));
+    }
+    else {
+    // we remove the columns in nzA which do not appear on the right side
+    // example: "ia" = "i"
+    // {0,0} = {0}, {1,0} = {1}, {0,1} = {0}, {1,1} = {1}
+      std::vector<int> iidx(this->order);
+      std::vector<int> toRemove;
+      std::iota(iidx.begin(), iidx.end(), 0);
+      std::set_difference( iidx.begin(), iidx.end()
+                         , idx.begin(), idx.end()
+                         , std::back_inserter(toRemove)
+                         );
+      for (auto &n: nzA){
+        for (auto t: toRemove) n[t] = -1;
+        n.erase( std::remove( n.begin(), n.end(), -1), n.end() );
+        // the last element in n is the index of the nonZeroCondition
+        // this vector should appear in the list of the nonZeroConditions of A
+        bool replaced(false);
+        for (auto a: A.nonZeroCondition){
+          if ( std::equal( a.begin(), a.end() - 1, n.begin()) ){
+            n.back() = a.back();
+            replaced = true;
+          }
+        }
+        IASSERT(replaced);
+      }
+    }
+    if (verbose) {
+      printf("%s[%s] <- %s[%s]\n", this->name, cidx_B, A.name, cidx_A);
+    }
     for (int i(0); i < this->nBlocks; i++){
-      idA[i] = nzA[i][order];
+      idA[i] = nzA[i][A.order];
+      idB[i] = nzB[i][this->order];
       if (verbose){
         printf("bs %d: ", i);
-        for (int j(0); j < order; j++) printf("%d ", this->nonZeroCondition[i][j]);
-        printf("| %d -> ", this->nonZeroCondition[i][order]);
-        for (int j(0); j < order; j++) printf("%d ", nzA[i][j]);
+        for (int j(0); j < this->order; j++)
+          printf("%d ", nzB[i][j]);
+        printf("| %d <- ", idB[i]);
+        for (int j(0); j < A.order; j++) printf("%d ", nzA[i][j]);
         printf(" | %d\n", idA[i]);
       }
     }
@@ -244,7 +273,7 @@ namespace CTF {
       CTF_int::summation sum
         = CTF_int::summation(
             A.tensors[idA[i]], cidx_A, (char*)&alpha,
-            this->tensors[i], cidx_B, (char*)&beta
+            this->tensors[idB[i]], cidx_B, (char*)&beta
           );
       sum.execute();
     }
@@ -261,6 +290,7 @@ namespace CTF {
     IASSERT(this->order == A.order);
     int nBlocks = this->nBlocks;
     ivec idA(nBlocks);
+    ivec idB(nBlocks);
     IASSERT(this->nBlocks == A.nBlocks);
     checkDublicate(cidx_A);
     checkDublicate(cidx_B);
@@ -274,15 +304,20 @@ namespace CTF {
     idx[order] = order;
 
     auto nzA = A.nonZeroCondition;
-    auto p = orderToN(idx);
+    auto nzB = this->nonZeroCondition;
     std::sort(nzA.begin(), nzA.end(), compare(idx));
-
+    std::sort(nzB.begin(), nzB.end());
+    if (verbose) {
+      printf("%s[%s] <- %s[%s]\n", this->name, cidx_B, A.name, cidx_A);
+      for (auto i: idx) printf("%d ", i); std::cout << std::endl;
+    }
     for (int i(0); i < this->nBlocks; i++){
       idA[i] = nzA[i][order];
+      idB[i] = nzB[i][order];
       if (verbose){
         printf("bs %d: ", i);
-        for (int j(0); j < order; j++) printf("%d ", this->nonZeroCondition[i][j]);
-        printf("| %d -> ", this->nonZeroCondition[i][order]);
+        for (int j(0); j < order; j++) printf("%d ", nzB[i][j]);
+        printf("| %d -> ", idB[i]);
         for (int j(0); j < order; j++) printf("%d ", nzA[i][j]);
         printf(" | %d\n", idA[i]);
       }
@@ -292,7 +327,7 @@ namespace CTF {
       CTF_int::summation sum
         = CTF_int::summation(
             A.tensors[idA[i]], cidx_A, (char*)&alpha,
-            this->tensors[i], cidx_B, (char*)&beta,&fseq
+            this->tensors[idB[i]], cidx_B, (char*)&beta,&fseq
           );
       sum.execute();
     }
@@ -425,71 +460,61 @@ namespace CTF {
                                  dtype             beta,
                                  char const *      cidx_C,
                                  bool              verbose) {
+    if (verbose)
+      printf( "%s[%s] = %s[%s] x %s[%s]:\n"
+            , this->name, cidx_C, A.name, cidx_A, B.name, cidx_B);
 
+    // we cannot handle dublicate indices!
     checkDublicate(cidx_A);
     checkDublicate(cidx_B);
     checkDublicate(cidx_C);
-    ivec idxA(A.order);
-    ivec idxB(B.order);
+
+
+
+
+    ivec idxA;
+    ivec idxB;
     std::vector< std::pair<int, int> > ca, cb, ab;
-    int aa(0), bb(0);
     for (int i(0); i < this->order; i++){
       auto c(cidx_C[i]);
       for (int j(0); j < A.order; j++)
-        if ( cidx_A[j] == c) { idxA[aa++] = j; ca.push_back({i,j}); }
+        if ( cidx_A[j] == c) { idxA.push_back(j); ca.push_back({i,j}); }
       for (int j(0); j < B.order; j++)
-        if ( cidx_B[j] == c) { idxB[bb++] = j; cb.push_back({i,j}); }
+        if ( cidx_B[j] == c) { idxB.push_back(j); cb.push_back({i,j}); }
     }
+   // this is the number of indices which appear on the lhs
+    int lhsA(idxA.size()), lhsB(idxB.size());
+    int rhs(A.order - idxA.size());
 
-    for (int i(0); i < this->order; i++) printf("%c",cidx_C[i]);
-    printf(" = ");
-    for (int i(0); i < A.order; i++) printf("%c",cidx_A[i]);
-    printf(" x ");
-    for (int i(0); i < B.order; i++) printf("%c",cidx_B[i]);
-    printf("\n");
-
-    // this is the number of indices which appear on the lhs
-    int lhsA(aa), lhsB(bb);
-    int rhs(A.order - aa);
-    IASSERT(rhs == B.order-bb);
-    IASSERT(aa+bb == this->order);
+    // TODO: We want to allow the following contractions:
+    // C["ijl"] = A["ikl"] * B["kjl"]
+    // which implies a contraction over k and a pointwise multiplication of l
+//    IASSERT(rhs == B.order-bb);
+//    IASSERT(aa+bb == this->order);
 
     for (int i(0); i < A.order; i++){
       auto a(cidx_A[i]);
       for (int j(0); j < B.order; j++)
       if ( a == cidx_B[j]) {
         ab.push_back({i,j});
-        idxA[aa++] = i;
-        idxB[bb++] = j;
+        idxA.push_back(i);
+        idxB.push_back(j);
       }
     }
 
-    IASSERT(aa == A.order);
-    IASSERT(bb == B.order);
-/*
-    printf("A: ");
-    for (int i(0); i < A.order; i++)
-      printf("%d ", idxA[i]);
-    printf("\nB: ");
-    for (int i(0); i < B.order; i++)
-      printf("%d ", idxB[i]);
-    printf("\n\n");
-*/
+//    IASSERT(aa == A.order);
+//    IASSERT(bb == B.order);
 
+    // We sort nzA, nzB. Then the contraction indices are the fast indices.
+    // are appear on the left side
+    //
     auto nzA = A.nonZeroCondition;
     std::sort(nzA.begin(), nzA.end(), compare(idxA));
-/*
-    for (auto n: nzA){
-      for (size_t p(0); p < A.order; p++) printf("%d ", n[p]);
-      printf("\n");
-    }
-
-    printf("========\n");
-*/
     auto nzB = B.nonZeroCondition;
     std::sort(nzB.begin(), nzB.end(), compare(idxB));
     auto nzC = this->nonZeroCondition;
     std::sort(nzC.begin(), nzC.end());
+
 
 
     std::vector< std::array<int,3> > tasks;
@@ -497,51 +522,61 @@ namespace CTF {
       auto beginA = std::distance( nzA.begin()
                                  , std::find_if( nzA.begin()
                                                , nzA.end()
-                                               , find(nzC[n], idxA, lhsA)
+                                               , find(nzC[n], ca)
                                                )
                                  );
       auto endA   = std::distance( nzA.begin()
                                  , std::find_if_not( nzA.begin() + beginA
                                                    , nzA.end()
-                                                   , find(nzC[n], idxA, lhsA)
+                                                   , find(nzC[n], ca)
                                                    )
                                  );
 
       auto beginB = std::distance( nzB.begin()
                                  , std::find_if( nzB.begin()
                                                , nzB.end()
-                                               , find(nzC[n], idxB, lhsB)
+                                               , find(nzC[n], cb)
                                                )
                                  );
       auto endB   = std::distance( nzB.begin()
                                  , std::find_if_not( nzB.begin() + beginB
                                                    , nzB.end()
-                                                   , find(nzC[n], idxB, lhsB)
+                                                   , find(nzC[n], cb)
                                                    )
                                  );
       auto els(endA-beginA);
       IASSERT(els == endB - beginB);
-
-      for (size_t p(0); p < this->order; p++) printf("%d", nzC[n][p]);
-      if (verbose) printf("(%2d)", nzC[n][this->order]);
-      if (verbose) printf(" = ");
-      for (size_t i(0); i < els; i++){
-        if (verbose){
-          if (i) printf(" + ");
-          for (size_t p(0); p < A.order; p++) printf("%d", nzA[beginA+i][p]);
-          printf("(%2d)", nzA[beginA+i][A.order]);
-          printf(" x ");
-          for (size_t p(0); p < B.order; p++) printf("%d", nzB[beginB+i][p]);
-          printf("(%2d)", nzB[beginB+i][B.order]);
+      if (verbose) {
+        for (size_t p(0); p < this->order; p++) printf(" %d", nzC[n][p]);
+        printf(" (%*d)", 1 + (int) log10(this->nBlocks), nzC[n][this->order]);
+        printf(" = ");
+        for (size_t i(0); i < els; i++){
+            if (i) printf(" + ");
+            for (size_t p(0); p < A.order; p++) printf(" %d", nzA[beginA+i][p]);
+            printf(" (%*d)", 1+(int) log10(A.nBlocks), nzA[beginA+i][A.order]);
+            printf(" x ");
+            for (size_t p(0); p < B.order; p++) printf(" %d", nzB[beginB+i][p]);
+            printf(" (%*d)", 1+(int) log10(B.nBlocks), nzB[beginB+i][B.order]);
         }
+        printf("\n");
+      }
+
+      for (size_t i(0); i < els; i++)
         tasks.push_back(
           {nzC[n][this->order], nzA[beginA+i][A.order], nzB[beginB+i][B.order]}
         );
-      }
-      if (verbose) printf("\n");
 
     }
-    printf("=====\n");
+    if (verbose) printf("--\n");
+    // We have to be careful here: if beta is the zero element the final
+    // result would only be the result of last contraction
+    // (for this non-zero element)
+    // thats why in this case we zero the tensor C for all elements
+    auto sr = this->tensors[0]->sr;
+    if (beta == (dtype) 0) {
+      for (auto t: this->tensors) sr->set(t->data, sr->addid(), t->size);
+      beta = (dtype) 1;
+    }
     for (auto t: tasks){
       CTF_int::contraction ctr
         = CTF_int::contraction( A.tensors[t[1]], cidx_A
