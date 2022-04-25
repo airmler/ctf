@@ -402,7 +402,7 @@ namespace CTF {
                             Univar_Function<dtype> fseq,
                             bool                   verbose) {
     IASSERT(this->order == A.order);
-    int nBlocks = nonZeroA.size();
+    int Blocks = nonZeroA.size();
     IASSERT(nonZeroA.size() == nonZeroB.size());
     int *nzIdxA = new int[nBlocks];
     int *nzIdxB = new int[nBlocks];
@@ -410,15 +410,13 @@ namespace CTF {
     checkDublicate(cidx_A);
     checkDublicate(cidx_B);
 
-
-
     for (int64_t i(0); i < nonZeroA.size(); i++){
       auto p =
-        std::find( A->nonZeroCondition.begin()
-                 , A->nonZeroCondition.end()
+        std::find( A.nonZeroCondition.begin()
+                 , A.nonZeroCondition.end()
                  , nonZeroA[i]
                  );
-      nzIdxA[i] = std::distance(A->nonZeroCondition.begin(), p);
+      nzIdxA[i] = std::distance(A.nonZeroCondition.begin(), p);
       IASSERT(nzIdxA[i] < A.nonZeroCondition.size());
 
       p = std::find( this->nonZeroCondition.begin()
@@ -441,7 +439,7 @@ namespace CTF {
      CTF_int::summation sum
        = CTF_int::summation(
            A.tensors[nzIdxA[i]], cidx_A, (char*)&alpha,
-           this->tensors[nzIdxB[i]], cidx_B, (char*)&beta, fseq
+           this->tensors[nzIdxB[i]], cidx_B, (char*)&beta, &fseq
          );
 
      sum.execute();
@@ -469,9 +467,6 @@ namespace CTF {
     checkDublicate(cidx_B);
     checkDublicate(cidx_C);
 
-
-
-
     ivec idxA;
     ivec idxB;
     std::vector< std::pair<int, int> > ca, cb, ab;
@@ -489,8 +484,6 @@ namespace CTF {
     // TODO: We want to allow the following contractions:
     // C["ijl"] = A["ikl"] * B["kjl"]
     // which implies a contraction over k and a pointwise multiplication of l
-//    IASSERT(rhs == B.order-bb);
-//    IASSERT(aa+bb == this->order);
 
     for (int i(0); i < A.order; i++){
       auto a(cidx_A[i]);
@@ -502,12 +495,8 @@ namespace CTF {
       }
     }
 
-//    IASSERT(aa == A.order);
-//    IASSERT(bb == B.order);
-
     // We sort nzA, nzB. Then the contraction indices are the fast indices.
-    // are appear on the left side
-    //
+
     auto nzA = A.nonZeroCondition;
     std::sort(nzA.begin(), nzA.end(), compare(idxA));
     auto nzB = B.nonZeroCondition;
@@ -571,7 +560,7 @@ namespace CTF {
     // We have to be careful here: if beta is the zero element the final
     // result would only be the result of last contraction
     // (for this non-zero element)
-    // thats why in this case we zero the tensor C for all elements
+    // thats why we zero the tensor C, then setting beta to one!!
     auto sr = this->tensors[0]->sr;
     if (beta == (dtype) 0) {
       for (auto t: this->tensors) sr->set(t->data, sr->addid(), t->size);
@@ -587,7 +576,6 @@ namespace CTF {
     }
 
   };
-
 
 
   template<typename dtype>
@@ -611,23 +599,5 @@ namespace CTF {
         offsets, ends, (char*)&beta, A.tensors[i], offsets_A, ends_A, (char*)&alpha);
     }
   }
-//
-//  template<typename dtype>
-//  void Tensor<dtype>::contract(dtype            alpha,
-//                               CTF_int::tensor& A,
-//                               const char *     idx_A,
-//                               CTF_int::tensor& B,
-//                               const char *     idx_B,
-//                               dtype            beta,
-//                               const char *     idx_C){
-//    CTF_int::contraction ctr
-//      = CTF_int::contraction(&A, idx_A, &B, idx_B, (char*)&alpha, this, idx_C, (char*)&beta);
-//    ctr.execute();
-//  }
-
 
 }
-
-
-
-
