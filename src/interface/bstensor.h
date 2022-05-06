@@ -37,10 +37,41 @@ namespace CTF {
                CTF_int::algstrct const & sr=Ring<dtype>());
 
       /**
+       * \brief defines tensor filled with zeros on the default algstrct
+       * \param[in] order number of dimensions of tensor
+       * \param[in] len edge lengths of tensor
+       * \param[in] wrld a world for the tensor to live in
+       * \param[in] name an optionary name for the tensor
+       * \param[in] profile set to 1 to profile contractions involving this tensor
+       * \param[in] sr defines the tensor arithmetic for this tensor
+       */
+      bsTensor(int                       order,
+               int64_t const *           len,
+               std::vector<ivec>         nonZero,
+               World *                   wrld=get_universe(),
+               char const *              name=NULL,
+               bool                      profile=0,
+               CTF_int::algstrct const & sr=Ring<dtype>());
+
+
+
+      /**
        * \brief copies a tensor, copying the data of A
        * \param[in] A tensor to copy
        */
       bsTensor(bsTensor<dtype> const & A);
+
+
+      void init(int                       order,
+                int64_t const *           len,
+                int const *               sym,
+                std::vector<ivec>         nonZero,
+                World *                   wrld=get_universe(),
+                char const *              name=NULL,
+                bool                      profile=0,
+                CTF_int::algstrct const & sr=Ring<dtype>()
+               );
+
 
       /**
        * \brief  Gives the values associated with any set of indices.
