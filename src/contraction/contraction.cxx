@@ -3076,7 +3076,7 @@ namespace CTF_int {
       A->set_padding();
       B->set_padding();
       C->set_padding();
-      if (gbest_time_sel < 100.){
+      if (gbest_time_sel < 1e100){
         gbest_time_exh = gbest_time_sel+1.;
         ttopo_exh = ttopo_sel;
       } else {
