@@ -323,7 +323,7 @@ namespace CTF_int {
         if (cdt_C[i]->rank == 0){
           cdt_C[i]->red(MPI_IN_PLACE, new_C, size_C, sr_C->mdtype(), sr_C->addmop(), 0);
         } else {
-          cdt_C[i]->red(new_C, NULL, size_C, sr_C->mdtype(), sr_C->addmop(), 0);
+          cdt_C[i]->red(new_C, new_C, size_C, sr_C->mdtype(), sr_C->addmop(), 0);
         }
       }
     }
