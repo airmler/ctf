@@ -27,14 +27,14 @@ namespace CTF {
        * \param[in] profile set to 1 to profile contractions involving this tensor
        * \param[in] sr defines the tensor arithmetic for this tensor
        */
-      bsTensor(int                       order,
-               int64_t const *           len,
-               int const *               sym,
-               std::vector<ivec>         nonZero,
-               World *                   wrld=get_universe(),
-               char const *              name=NULL,
-               bool                      profile=0,
-               CTF_int::algstrct const & sr=Ring<dtype>());
+      bsTensor(int                        order,
+               std::vector<int64_t> const len,
+               std::vector<int> const     sym,
+               std::vector<ivec> const    nonZero,
+               World *                    wrld=get_universe(),
+               char const *               name=NULL,
+               bool                       profile=0,
+               CTF_int::algstrct const &  sr=Ring<dtype>());
 
       /**
        * \brief defines tensor filled with zeros on the default algstrct
@@ -45,13 +45,13 @@ namespace CTF {
        * \param[in] profile set to 1 to profile contractions involving this tensor
        * \param[in] sr defines the tensor arithmetic for this tensor
        */
-      bsTensor(int                       order,
-               int64_t const *           len,
-               std::vector<ivec>         nonZero,
-               World *                   wrld=get_universe(),
-               char const *              name=NULL,
-               bool                      profile=0,
-               CTF_int::algstrct const & sr=Ring<dtype>());
+      bsTensor(int                        order,
+               std::vector<int64_t> const len,
+               std::vector<ivec> const    nonZero,
+               World *                    wrld=get_universe(),
+               char const *               name=NULL,
+               bool                       profile=0,
+               CTF_int::algstrct const &  sr=Ring<dtype>());
 
 
 
@@ -63,7 +63,7 @@ namespace CTF {
 
 
       void init(int                       order,
-                int64_t const *           len,
+                std::vector<int64_t>      len,
                 int const *               sym,
                 std::vector<ivec>         nonZero,
                 World *                   wrld=get_universe(),
@@ -107,38 +107,14 @@ namespace CTF {
                 );
 
 
-      /**
-       * \brief contracts C[idx_C] = beta*C[idx_C] + alpha*A[idx_A]*B[idx_B]
-       * \param[in] alpha A*B scaling factor
-       * \param[in] A first operand tensor
-       * \param[in] idx_A indices of A in contraction, e.g. "ik" -> A_{ik}
-       * \param[in] B second operand tensor
-       * \param[in] idx_B indices of B in contraction, e.g. "kj" -> B_{kj}
-       * \param[in] beta C scaling factor
-       * \param[in] idx_C indices of C (this tensor),  e.g. "ij" -> C_{ij}
-       */
-      //TODO
-      //void contract(dtype             alpha,
-      //              CTF_int::tensor & A,
-      //              char const *      idx_A,
-      //              CTF_int::tensor & B,
-      //              char const *      idx_B,
-      //              dtype             beta,
-      //              char const *      idx_C);
+      void read_dense_from_file(MPI_File & file, int64_t const block = -1);
 
-      /**
-       * \brief cuts out a slice (block) of this tensor A[offsets,ends)
-       *        result will always be fully nonsymmetric
-       * \param[in] offsets bottom left corner of block
-       * \param[in] ends top right corner of block
-       * \return new tensor corresponding to requested slice
-       */
-      void slice(int64_t const * offsets,
-                 int64_t const * ends,
+      void slice(std::vector<int64_t> const offsets,
+                 std::vector<int64_t> const ends,
                  dtype           beta,
                  bsTensor<dtype> const &A,
-                 int64_t const * offsets_A,
-                 int64_t const * ends_A,
+                 std::vector<int64_t> const offsets_A,
+                 std::vector<int64_t> const ends_A,
                  dtype           alpha );
 
 
@@ -225,6 +201,7 @@ namespace CTF {
                     char const *      idx_C,
                     bool              verbose=false);
 
+
       /**
        * \brief get the tensor name
        * \return tensor name
@@ -247,7 +224,7 @@ namespace CTF {
       std::vector<CTF_int::tensor *> tensors;
       std::vector<ivec> nonZeroCondition; 
       int64_t nBlocks;
-      int64_t * lens;
+      std::vector<int64_t> lens;
       int order;
       char * name;
       CTF::World world;

@@ -21,25 +21,27 @@ namespace CTF {
 
 
   template<typename dtype>
-  bsTensor<dtype>::bsTensor(int                       order_,
-                            int64_t const *           len_,
-                            int const *               sym_,
-                            std::vector<ivec>         nonZero_,
-                            World *                   world_,
-                            char const *              name_,
-                            bool                      profile_,
-                            CTF_int::algstrct const & sr_) {
+  bsTensor<dtype>::bsTensor(int                        order_,
+                            std::vector<int64_t> const len_,
+                            std::vector<int> const     sym_,
+                            std::vector<ivec> const    nonZero_,
+                            World *                    world_,
+                            char const *               name_,
+                            bool                       profile_,
+                            CTF_int::algstrct const &  sr_) {
+    assert(order_ == len_.size());
     this->init(order_, len_, sym_, nonZero_, world_, name_, profile_, sr_);
   }
 
   template<typename dtype>
-  bsTensor<dtype>::bsTensor(int                       order_,
-                            int64_t const *           len_,
-                            std::vector<ivec>         nonZero_,
-                            World *                   world_,
-                            char const *              name_,
-                            bool                      profile_,
-                            CTF_int::algstrct const & sr_) {
+  bsTensor<dtype>::bsTensor(int                        order_,
+                            std::vector<int64_t> const len_,
+                            std::vector<ivec> const    nonZero_,
+                            World *                    world_,
+                            char const *               name_,
+                            bool                       profile_,
+                            CTF_int::algstrct const &  sr_) {
+    assert(order_ == len_.size());
     std::vector<int> sym(order_, NS);
     this->init(order_, len_, sym.data(), nonZero_, world_, name_, profile_, sr_);
   }
@@ -47,12 +49,12 @@ namespace CTF {
   template<typename dtype>
   bsTensor<dtype>::bsTensor(bsTensor<dtype> const & A)
   {
-    order = A->order;
-    lens = A->lens;
-    name = A->name;
-    nonZeroCondition = A->nonZeroCondition;
-    nBlocks = A->nBlocks;
-    tensors = A->tensors;
+    order = A.order;
+    lens = A.lens;
+    name = A.name;
+    nonZeroCondition = A.nonZeroCondition;
+    nBlocks = A.nBlocks;
+    tensors = A.tensors;
   }
 
 
@@ -61,24 +63,22 @@ namespace CTF {
     for (auto &t: tensors) {
 //      delete t;
     }
-    CTF_int::cdealloc(lens);
     CTF_int::cdealloc(name);
   }
 
 
   template<typename dtype>
   void bsTensor<dtype>::init(int order_,
-                             int64_t const *           len_,
-                             int const *               sym_,
-                             std::vector<ivec>         nonZero_,
-                             World *                   world_,
-                             char const *              name_,
-                             bool                      profile_,
-                             CTF_int::algstrct const & sr_) {
+                             std::vector<int64_t> const len_,
+                             int const *                sym_,
+                             std::vector<ivec>          nonZero_,
+                             World *                    world_,
+                             char const *               name_,
+                             bool                       profile_,
+                             CTF_int::algstrct const &  sr_) {
     IASSERT(sizeof(dtype)==sr_.el_size);
     this->order = order_;
-    this->lens = (int64_t*)CTF_int::alloc(order*sizeof(int64_t));
-    memcpy(this->lens, len_, order*sizeof(int64_t));
+    lens = len_;
     if (name_ != NULL) {
       this->name = (char*)CTF_int::alloc(strlen(name_)+1);
       strcpy(this->name, name_);
@@ -95,12 +95,14 @@ namespace CTF {
     if (nBlocks <= 0) { printf("Tensor %s", this->name); IASSERT(nBlocks>0);};
     int i(0);
     for (auto nz: nonZero_){
+      if (nz.size() != order_) printf("order %d != nz.size() %ld\n"
+                                     , order_, nz.size());
       IASSERT(nz.size()==order_);
       ivec r(nz);
       r.push_back(i++);
       nonZeroCondition.push_back(r);
       tensors.push_back(
-        new CTF_int::tensor(&sr_, order_, len_, sym_, world_, 1, this->name, profile_)
+        new CTF_int::tensor(&sr_, order_, len_.data(), sym_, world_, 1, this->name, profile_)
       );
     }
   }
@@ -165,6 +167,22 @@ namespace CTF {
     }
   }
 
+  template<typename dtype>
+  void bsTensor<dtype>::read_dense_from_file(MPI_File & file, int64_t block){
+    IASSERT(block < this->nBlocks);
+    int64_t elements = std::accumulate( lens.begin()
+                                      , lens.end()
+                                      , 1L
+                                      , std::multiplies<int64_t>());
+    int64_t off(0L);
+    if (block < 0)
+      for (auto &t: this->tensors) t->read_dense_from_file(file, elements*(off++) );
+      // read the whole file -> full block sparse tensor
+    else
+      this->tensors[block]->read_dense_from_file(file, block*elements);
+
+
+  }
 
   template<typename dtype>
   char const * bsTensor<dtype>::get_name() const {
@@ -612,39 +630,26 @@ namespace CTF {
 
 
   template<typename dtype>
-  void bsTensor<dtype>::slice(int64_t const *        offsets,
-                              int64_t const *        ends,
+  void bsTensor<dtype>::slice(std::vector<int64_t> const offsets,
+                              std::vector<int64_t> const ends,
                               dtype                  beta,
                               bsTensor<dtype> const &A,
-                              int64_t const *        offsets_A,
-                              int64_t const *        ends_A,
+                              std::vector<int64_t> const offsets_A,
+                              std::vector<int64_t> const ends_A,
                               dtype                  alpha){
 
-    // make sure that the tensors
+    // make sure that the tensors have the same nonZeroConditions
     IASSERT(this->nBlocks == A.nBlocks);
     for (int i(0); i < this->nBlocks; i++)
       IASSERT( this->nonZeroCondition[i] == A.nonZeroCondition[i] );
 
+    for (int i(0); i < this->nBlocks; i++)
+      this->tensors[i]->slice( offsets.data(), ends.data()
+                             , (char*)&beta, A.tensors[i]
+                             , offsets_A.data(), ends_A.data()
+                             , (char*)&alpha);
 
-
-    for (int i(0); i < this->nBlocks; i++){
-      this->tensors[i]->slice(
-        offsets, ends, (char*)&beta, A.tensors[i], offsets_A, ends_A, (char*)&alpha);
-    }
   }
-//
-//  template<typename dtype>
-//  void Tensor<dtype>::contract(dtype            alpha,
-//                               CTF_int::tensor& A,
-//                               const char *     idx_A,
-//                               CTF_int::tensor& B,
-//                               const char *     idx_B,
-//                               dtype            beta,
-//                               const char *     idx_C){
-//    CTF_int::contraction ctr
-//      = CTF_int::contraction(&A, idx_A, &B, idx_B, (char*)&alpha, this, idx_C, (char*)&beta);
-//    ctr.execute();
-//  }
 
 
 }
