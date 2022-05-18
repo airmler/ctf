@@ -29,11 +29,56 @@ namespace CTF {
                             char const *              name_,
                             bool                      profile_,
                             CTF_int::algstrct const & sr_) {
-//    this->sr = sr_;
+    this->init(order_, len_, sym_, nonZero_, world_, name_, profile_, sr_);
+  }
+
+  template<typename dtype>
+  bsTensor<dtype>::bsTensor(int                       order_,
+                            int64_t const *           len_,
+                            std::vector<ivec>         nonZero_,
+                            World *                   world_,
+                            char const *              name_,
+                            bool                      profile_,
+                            CTF_int::algstrct const & sr_) {
+    std::vector<int> sym(order_, NS);
+    this->init(order_, len_, sym.data(), nonZero_, world_, name_, profile_, sr_);
+  }
+
+  template<typename dtype>
+  bsTensor<dtype>::bsTensor(bsTensor<dtype> const & A)
+  {
+    order = A->order;
+    lens = A->lens;
+    name = A->name;
+    nonZeroCondition = A->nonZeroCondition;
+    nBlocks = A->nBlocks;
+    tensors = A->tensors;
+  }
+
+
+  template<typename dtype>
+  bsTensor<dtype>::~bsTensor(){
+    for (auto &t: tensors) {
+//      delete t;
+    }
+    CTF_int::cdealloc(lens);
+    CTF_int::cdealloc(name);
+  }
+
+
+  template<typename dtype>
+  void bsTensor<dtype>::init(int order_,
+                             int64_t const *           len_,
+                             int const *               sym_,
+                             std::vector<ivec>         nonZero_,
+                             World *                   world_,
+                             char const *              name_,
+                             bool                      profile_,
+                             CTF_int::algstrct const & sr_) {
+    IASSERT(sizeof(dtype)==sr_.el_size);
     this->order = order_;
     this->lens = (int64_t*)CTF_int::alloc(order*sizeof(int64_t));
     memcpy(this->lens, len_, order*sizeof(int64_t));
-//    this->world = *world_;
     if (name_ != NULL) {
       this->name = (char*)CTF_int::alloc(strlen(name_)+1);
       strcpy(this->name, name_);
@@ -58,31 +103,7 @@ namespace CTF {
         new CTF_int::tensor(&sr_, order_, len_, sym_, world_, 1, this->name, profile_)
       );
     }
-    IASSERT(sizeof(dtype)==sr_.el_size);
   }
-
-
-  template<typename dtype>
-  bsTensor<dtype>::bsTensor(bsTensor<dtype> const & A)
-  {
-    order = A->order;
-    lens = A->lens;
-    name = A->name;
-    nonZeroCondition = A->nonZeroCondition;
-    nBlocks = A->nBlocks;
-    tensors = A->tensors;
-  }
-
-
-  template<typename dtype>
-  bsTensor<dtype>::~bsTensor(){
-    for (auto &t: tensors) {
-//      delete t;
-    }
-    CTF_int::cdealloc(lens);
-    CTF_int::cdealloc(name);
-  }
-
 
 
   template<typename dtype>
