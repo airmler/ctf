@@ -130,11 +130,11 @@ namespace CTF {
 //    IASSERT(block>=0); //not implemented yet
     IASSERT(block< this->nBlocks);
     int64_t npair;
-    printf("read_all:We have %ld blocks:\n", this->nBlocks);
-    for (auto nz: this->nonZeroCondition) {
-      for (auto a: nz) printf("%d ", a);
-      printf("\n");
-    }
+//    printf("read_all:We have %ld blocks:\n", this->nBlocks);
+//    for (auto nz: this->nonZeroCondition) {
+//      for (auto a: nz) printf("%d ", a);
+//      printf("\n");
+//    }
     this->tensors[0]->allread(&npair, (char *) data, false);
   }
 
@@ -237,27 +237,24 @@ namespace CTF {
 // b) B["ijab"] = A["i"]
 // in both cases we have to find the correct non-zero block summation
 
-    ivec idA(this->nBlocks);
-    ivec idB(this->nBlocks);
+    ivec idA(this->nBlocks), idB(this->nBlocks);
     // TODO: we have to resolve this assert. if the right side has an higher
     //       order, it implies a sum over the additional index
     IASSERT(this->order >= A.order);
     IASSERT(this->nBlocks >= A.nBlocks);
-    checkDublicate(cidx_A);
-    checkDublicate(cidx_B);
-    std::string idxA(cidx_A);
-    std::string idxB(cidx_B);
+    checkDublicate(cidx_A);  checkDublicate(cidx_B);
+    std::string idxA(cidx_A), idxB(cidx_B);
    // These are the nonZeroIndices for A
     // We initialize these indices as the nonZeroCondition of B
-    auto nzA(this->nonZeroCondition);
-    auto nzB(this->nonZeroCondition);
+    auto nzA(this->nonZeroCondition);   auto nzB(this->nonZeroCondition);
+    std::sort( nzB.begin(), nzB.end());
     // idx maps the indices on the left with the incides on the right
-    std::vector<int> idx;
     // it is to find the indices of B in tensor A
+    std::vector<int> idx;
     for (int i(0); i < A.order; i++){
       auto it = std::find( std::begin(idxB), std::end(idxB), idxA[i]);
       if (it == std::end(idxB)) continue;
-      idx.push_back(std::distance( std::begin(idxB), it));
+      idx.push_back( std::distance( std::begin(idxB), it ) );
     }
 
     if (this->order == A.order){
@@ -277,9 +274,17 @@ namespace CTF {
                          , idx.begin(), idx.end()
                          , std::back_inserter(toRemove)
                          );
+      if (verbose) printf("\n\n");
+      if (verbose) for (auto t: toRemove) printf("%d ", t);
+      if (verbose) printf("\n\n");
+      std::sort(nzA.begin(), nzA.end());
       for (auto &n: nzA){
         for (auto t: toRemove) n[t] = -1;
         n.erase( std::remove( n.begin(), n.end(), -1), n.end() );
+        if (verbose) {
+          for (auto nn: n) printf("%d ", nn);
+          printf("\n");
+        }
         // the last element in n is the index of the nonZeroCondition
         // this vector should appear in the list of the nonZeroConditions of A
         bool replaced(false);
@@ -292,13 +297,14 @@ namespace CTF {
         IASSERT(replaced);
       }
     }
-    if (verbose) {
-      printf("%s[%s] <- %s[%s]\n", this->name, cidx_B, A.name, cidx_A);
-    }
     for (int i(0); i < this->nBlocks; i++){
       idA[i] = nzA[i][A.order];
       idB[i] = nzB[i][this->order];
-      if (verbose){
+    }
+
+    if (verbose) {
+      printf("%s[%s] <- %s[%s]\n", this->name, cidx_B, A.name, cidx_A);
+      for (int i(0); i < this->nBlocks; i++){
         printf("bs %d: ", i);
         for (int j(0); j < this->order; j++)
           printf("%d ", nzB[i][j]);
@@ -307,6 +313,7 @@ namespace CTF {
         printf(" | %d\n", idA[i]);
       }
     }
+
 
     for (int i(0); i < this->nBlocks; i++){
       CTF_int::summation sum
@@ -328,13 +335,10 @@ namespace CTF {
                             bool                   verbose){
     IASSERT(this->order == A.order);
     int nBlocks = this->nBlocks;
-    ivec idA(nBlocks);
-    ivec idB(nBlocks);
+    ivec idA(nBlocks), idB(nBlocks);
     IASSERT(this->nBlocks == A.nBlocks);
-    checkDublicate(cidx_A);
-    checkDublicate(cidx_B);
-    std::string idxA(cidx_A);
-    std::string idxB(cidx_B);
+    checkDublicate(cidx_A); checkDublicate(cidx_B);
+    std::string idxA(cidx_A), idxB(cidx_B);
     std::vector<int> idx(order+1);
     for (int i(0); i < order; i++){
       auto p = std::find(std::begin(idxA), std::end(idxA), idxB[i]);
@@ -346,14 +350,16 @@ namespace CTF {
     auto nzB = this->nonZeroCondition;
     std::sort(nzA.begin(), nzA.end(), compare(idx));
     std::sort(nzB.begin(), nzB.end());
-    if (verbose) {
-      printf("%s[%s] <- %s[%s]\n", this->name, cidx_B, A.name, cidx_A);
-      for (auto i: idx) printf("%d ", i); std::cout << std::endl;
-    }
+
     for (int i(0); i < this->nBlocks; i++){
       idA[i] = nzA[i][order];
       idB[i] = nzB[i][order];
-      if (verbose){
+    }
+    if (verbose) {
+      printf("%s[%s] <- %s[%s]\n", this->name, cidx_B, A.name, cidx_A);
+      for (auto i: idx) printf("%d ", i);
+      std::cout << std::endl;
+      for (int i(0); i < this->nBlocks; i++){
         printf("bs %d: ", i);
         for (int j(0); j < order; j++) printf("%d ", nzB[i][j]);
         printf("| %d -> ", idB[i]);
@@ -441,7 +447,7 @@ namespace CTF {
                             Univar_Function<dtype> fseq,
                             bool                   verbose) {
     IASSERT(this->order == A.order);
-    int nBlocks = nonZeroA.size();
+    int Blocks = nonZeroA.size();
     IASSERT(nonZeroA.size() == nonZeroB.size());
     int *nzIdxA = new int[nBlocks];
     int *nzIdxB = new int[nBlocks];
@@ -449,15 +455,13 @@ namespace CTF {
     checkDublicate(cidx_A);
     checkDublicate(cidx_B);
 
-
-
     for (int64_t i(0); i < nonZeroA.size(); i++){
       auto p =
-        std::find( A->nonZeroCondition.begin()
-                 , A->nonZeroCondition.end()
+        std::find( A.nonZeroCondition.begin()
+                 , A.nonZeroCondition.end()
                  , nonZeroA[i]
                  );
-      nzIdxA[i] = std::distance(A->nonZeroCondition.begin(), p);
+      nzIdxA[i] = std::distance(A.nonZeroCondition.begin(), p);
       IASSERT(nzIdxA[i] < A.nonZeroCondition.size());
 
       p = std::find( this->nonZeroCondition.begin()
@@ -480,7 +484,7 @@ namespace CTF {
      CTF_int::summation sum
        = CTF_int::summation(
            A.tensors[nzIdxA[i]], cidx_A, (char*)&alpha,
-           this->tensors[nzIdxB[i]], cidx_B, (char*)&beta, fseq
+           this->tensors[nzIdxB[i]], cidx_B, (char*)&beta, &fseq
          );
 
      sum.execute();
@@ -508,9 +512,6 @@ namespace CTF {
     checkDublicate(cidx_B);
     checkDublicate(cidx_C);
 
-
-
-
     ivec idxA;
     ivec idxB;
     std::vector< std::pair<int, int> > ca, cb, ab;
@@ -528,8 +529,6 @@ namespace CTF {
     // TODO: We want to allow the following contractions:
     // C["ijl"] = A["ikl"] * B["kjl"]
     // which implies a contraction over k and a pointwise multiplication of l
-//    IASSERT(rhs == B.order-bb);
-//    IASSERT(aa+bb == this->order);
 
     for (int i(0); i < A.order; i++){
       auto a(cidx_A[i]);
@@ -541,12 +540,8 @@ namespace CTF {
       }
     }
 
-//    IASSERT(aa == A.order);
-//    IASSERT(bb == B.order);
-
     // We sort nzA, nzB. Then the contraction indices are the fast indices.
-    // are appear on the left side
-    //
+
     auto nzA = A.nonZeroCondition;
     std::sort(nzA.begin(), nzA.end(), compare(idxA));
     auto nzB = B.nonZeroCondition;
@@ -610,7 +605,7 @@ namespace CTF {
     // We have to be careful here: if beta is the zero element the final
     // result would only be the result of last contraction
     // (for this non-zero element)
-    // thats why in this case we zero the tensor C for all elements
+    // thats why we zero the tensor C, then setting beta to one!!
     auto sr = this->tensors[0]->sr;
     if (beta == (dtype) 0) {
       for (auto t: this->tensors) sr->set(t->data, sr->addid(), t->size);
@@ -626,7 +621,6 @@ namespace CTF {
     }
 
   };
-
 
 
   template<typename dtype>
@@ -650,10 +644,4 @@ namespace CTF {
                              , (char*)&alpha);
 
   }
-
-
 }
-
-
-
-
