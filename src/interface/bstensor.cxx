@@ -174,15 +174,35 @@ namespace CTF {
                                       , lens.end()
                                       , 1L
                                       , std::multiplies<int64_t>());
-    int64_t off(0L);
-    if (block < 0)
-      for (auto &t: this->tensors) t->read_dense_from_file(file, elements*(off++) );
-      // read the whole file -> full block sparse tensor
+    if (block < 0){
+      int64_t offset(0L);
+      for (auto &t: this->tensors) {
+        t->read_dense_from_file(file, offset*sizeof(dtype));
+        offset += elements;
+      }
+    }
     else
-      this->tensors[block]->read_dense_from_file(file, block*elements);
-
-
+      this->tensors[block]->read_dense_from_file(file, block*elements*sizeof(dtype));
   }
+
+  template<typename dtype>
+  void bsTensor<dtype>::write_dense_to_file(MPI_File & file, int64_t block){
+    IASSERT(block < this->nBlocks);
+    int64_t elements = std::accumulate( lens.begin()
+                                      , lens.end()
+                                      , 1L
+                                      , std::multiplies<int64_t>());
+    if (block < 0){
+      int64_t offset(0L);
+      for (auto &t: this->tensors) {
+        t->write_dense_to_file(file, offset*sizeof(dtype));
+        offset += elements;
+      }
+    }
+    else
+      this->tensors[block]->write_dense_to_file(file, block*elements*sizeof(dtype));
+  }
+
 
   template<typename dtype>
   char const * bsTensor<dtype>::get_name() const {
@@ -331,7 +351,7 @@ namespace CTF {
                             char const *           cidx_A,
                             dtype                  beta,
                             char const *           cidx_B,
-                            Univar_Function<dtype> fseq,
+                            Univar_Function<dtype>& fseq,
                             bool                   verbose){
     IASSERT(this->order == A.order);
     int nBlocks = this->nBlocks;
@@ -444,7 +464,7 @@ namespace CTF {
                             char const *           cidx_B,
                             std::vector<ivec>      nonZeroA,
                             std::vector<ivec>      nonZeroB,
-                            Univar_Function<dtype> fseq,
+                            Univar_Function<dtype> &fseq,
                             bool                   verbose) {
     IASSERT(this->order == A.order);
     int Blocks = nonZeroA.size();

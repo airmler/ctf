@@ -109,6 +109,8 @@ namespace CTF {
 
       void read_dense_from_file(MPI_File & file, int64_t const block = -1);
 
+      void write_dense_to_file(MPI_File & file, int64_t const block = -1);
+
       void slice(std::vector<int64_t> const offsets,
                  std::vector<int64_t> const ends,
                  dtype           beta,
@@ -132,7 +134,7 @@ namespace CTF {
                char const *           idx_A,
                dtype                  beta,
                char const *           idx_B,
-               Univar_Function<dtype> fseq,
+               Univar_Function<dtype> &fseq,
                bool                   verbose=false);
 
       /**
@@ -178,7 +180,7 @@ namespace CTF {
                char const *      idx_B,
                std::vector<ivec> nonZeroA,
                std::vector<ivec> nonZeroB,
-               Univar_Function<dtype> fseq,
+               Univar_Function<dtype> &fseq,
                bool              verbose=false);
 
 
