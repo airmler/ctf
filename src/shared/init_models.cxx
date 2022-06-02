@@ -10,7 +10,7 @@ namespace CTF_int{
   double bcast_mdl_init[] = {1.1115E-16, 1.0754E-16, 1.32E-9}; //mpi_bcast, used for summa for bcasting A,B, 3rd parameter is around 0.7 GB/s
   double seq_tsr_ctr_mdl_cst_init[] = {7.8076E-13, 6.9558E-08, 1.3923E-08}; // not used I guess
   double seq_tsr_ctr_mdl_ref_init[] = {4.9138E-08, 5.8290E-10, 4.8575E-11}; // not used I guess
-  double seq_tsr_ctr_mdl_inr_init[] = {6.0166E-21, 2.3443E-13, 1.4286E-11}; // our model, 2nd parameter negligible for large matrices, 3rd paramter fixed to 70GFLOPS/s/core
+  double seq_tsr_ctr_mdl_inr_init[] = {6.0166E-21, 2.3443E-10, 1.4286E-11}; // used model, 3rd paramter corresponds to 70GFLOPS/s/core, 2nd parameter set!
   double seq_tsr_ctr_mdl_off_init[] = {6.2925E-05, 1.7449E-11, 1.7211E-12}; // not used I guess
   double seq_tsr_ctr_mdl_cst_inr_init[] = {0.0, 0.0, 1.6E-11};
   double seq_tsr_ctr_mdl_cst_off_init[] = {8.4844E-04, 5.9246E-11, 3.5247E-10};
