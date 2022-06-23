@@ -54,6 +54,9 @@ namespace CTF {
 
   // get analytically estimated flops, which are effectual flops in dense case, but estimates based on aggregate nonzero density for sparse case
   int64_t get_estimated_flops();
+  int64_t get_bcast_msg_count();
+  int64_t get_red_msg_count();
+  int64_t get_computed_flops();
 
   /**
    * @}

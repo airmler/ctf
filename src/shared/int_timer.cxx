@@ -227,6 +227,15 @@ namespace CTF{
       sprintf(part,"       inclusive         exclusive\n");
       strcat(heading,part);
       fprintf(output, "%s", heading);
+
+      double bcastSize(CTF::get_bcast_msg_count()/1024.0/1024.0/1024.0);
+      fprintf(output,"Bcast data transfer %f GB/rank\n", bcastSize);
+      double redSize(CTF::get_red_msg_count()/1024.0/1024.0/1024.0);
+      fprintf(output,"Reduce data transfer %f GB/rank\n", redSize);
+      double flopCount(CTF::get_computed_flops()/1e9);
+      fprintf(output,"GFLOPS/core %f\n\n", flopCount);
+ 
+
       for (i=0; i<MAX_NAME_LENGTH; i++){
         part[i] = ' ';
       }

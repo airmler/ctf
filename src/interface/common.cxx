@@ -12,6 +12,8 @@
 namespace CTF_int {
   int64_t computed_flop_count = 0;
   int64_t estimated_flop_count = 0;
+  int64_t bcast_msg_count = 0;
+  int64_t red_msg_count = 0;
 }
 
 
@@ -25,6 +27,19 @@ namespace CTF {
   int64_t get_estimated_flops(){
     return CTF_int::estimated_flop_count;
   }
+
+  int64_t get_computed_flops(){
+    return CTF_int::computed_flop_count;
+  }
+
+  int64_t get_bcast_msg_count(){
+    return CTF_int::bcast_msg_count;
+  }
+
+  int64_t get_red_msg_count(){
+    return CTF_int::red_msg_count;
+  }
+
 
 }
 
@@ -394,7 +409,10 @@ namespace CTF_int {
 #ifdef TUNE
     double st_time = MPI_Wtime();
 #endif
+    bcast_msg_count += count * sizeof(mdtype);
+    TAU_FSTART(bcast);
     MPI_Bcast(buf, count, mdtype, root, cm);
+    TAU_FSTOP(bcast);
 #ifdef TUNE
     MPI_Barrier(cm);
     double exe_time = MPI_Wtime()-st_time;
@@ -453,8 +471,11 @@ namespace CTF_int {
     if(!bsr) return;
 #endif
 
+    red_msg_count += count * sizeof(mdtype);
     double st_time = MPI_Wtime();
+    TAU_FSTART(reduce);
     MPI_Reduce(inbuf, outbuf, count, mdtype, op, root, cm);
+    TAU_FSTOP(reduce);
 #ifdef TUNE
     MPI_Barrier(cm);
 #endif
