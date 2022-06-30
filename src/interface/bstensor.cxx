@@ -61,7 +61,7 @@ namespace CTF {
   template<typename dtype>
   bsTensor<dtype>::~bsTensor(){
     for (auto &t: tensors) {
-//      delete t;
+      delete t;
     }
     CTF_int::cdealloc(name);
   }
@@ -256,7 +256,6 @@ namespace CTF {
 // or an expression like
 // b) B["ijab"] = A["i"]
 // in both cases we have to find the correct non-zero block summation
-
     ivec idA(this->nBlocks), idB(this->nBlocks);
     // TODO: we have to resolve this assert. if the right side has an higher
     //       order, it implies a sum over the additional index
@@ -280,7 +279,7 @@ namespace CTF {
     if (this->order == A.order){
       // i.e.: B["Gia"] = A["Gai"] -> idx: 0,2,1
       // we sort nzA according to the indices-sequence in idx
-      if (verbose) { for (auto i: idx) printf("%d ", i); std::cout << std::endl;}
+      if (verbose && !this->world.rank) { for (auto i: idx) printf("%d ", i); std::cout << std::endl;}
       std::sort(nzA.begin(), nzA.end(), compare(idx));
     }
     else {
@@ -294,14 +293,14 @@ namespace CTF {
                          , idx.begin(), idx.end()
                          , std::back_inserter(toRemove)
                          );
-      if (verbose) printf("\n\n");
-      if (verbose) for (auto t: toRemove) printf("%d ", t);
-      if (verbose) printf("\n\n");
+      if (verbose && !this->world.rank) printf("\n\n");
+      if (verbose && !this->world.rank) for (auto t: toRemove) printf("%d ", t);
+      if (verbose && !this->world.rank) printf("\n\n");
       std::sort(nzA.begin(), nzA.end());
       for (auto &n: nzA){
         for (auto t: toRemove) n[t] = -1;
         n.erase( std::remove( n.begin(), n.end(), -1), n.end() );
-        if (verbose) {
+        if (verbose && !this->world.rank) {
           for (auto nn: n) printf("%d ", nn);
           printf("\n");
         }
@@ -322,7 +321,7 @@ namespace CTF {
       idB[i] = nzB[i][this->order];
     }
 
-    if (verbose) {
+    if (verbose && !this->world.rank) {
       printf("%s[%s] <- %s[%s]\n", this->name, cidx_B, A.name, cidx_A);
       for (int i(0); i < this->nBlocks; i++){
         printf("bs %d: ", i);
@@ -375,7 +374,7 @@ namespace CTF {
       idA[i] = nzA[i][order];
       idB[i] = nzB[i][order];
     }
-    if (verbose) {
+    if (verbose && !this->world.rank) {
       printf("%s[%s] <- %s[%s]\n", this->name, cidx_B, A.name, cidx_A);
       for (auto i: idx) printf("%d ", i);
       std::cout << std::endl;
@@ -433,7 +432,7 @@ namespace CTF {
                    );
       nzIdxB[i] = std::distance(this->nonZeroCondition.begin(), p);
       IASSERT(nzIdxB[i] < this->nonZeroCondition.size());
-      if (verbose){
+      if (verbose && !this->world.rank){
         printf("bs %ld: ", i);
         for (int j(0); j < order; j++) printf("%d ", nonZeroA[i][j]);
         printf("| %d -> ", nzIdxA[i]);
@@ -490,7 +489,7 @@ namespace CTF {
                    );
       nzIdxB[i] = std::distance(this->nonZeroCondition.begin(), p);
       IASSERT(nzIdxB[i] < this->nonZeroCondition.size());
-      if (verbose){
+      if (verbose && !this->world.rank){
         printf("bs %ld: ", i);
         for (int j(0); j < order; j++) printf("%d ", nonZeroA[i][j]);
         printf("| %d -> ", nzIdxA[i]);
@@ -523,7 +522,7 @@ namespace CTF {
                                  dtype             beta,
                                  char const *      cidx_C,
                                  bool              verbose) {
-    if (verbose)
+    if (verbose && !this->world.rank)
       printf( "%s[%s] = %s[%s] x %s[%s]:\n"
             , this->name, cidx_C, A.name, cidx_A, B.name, cidx_B);
 
@@ -599,8 +598,15 @@ namespace CTF {
                                                    )
                                  );
       auto els(endA-beginA);
-      IASSERT(els == endB - beginB);
-      if (verbose) {
+      if (els != endB - beginB){
+        if (!this->world.rank){
+          printf("Problem with the contraction:\n  %s[%s] = %s[%s] %s[%s]\n",
+                 this->name, cidx_C, A.name, cidx_A, B.name, cidx_B);
+          printf("els == endB - beginB: %ld %ld %ld\n", els, endB, beginB);
+        }
+        IASSERT(0);
+      }
+      if (verbose && !this->world.rank) {
         for (size_t p(0); p < this->order; p++) printf(" %d", nzC[n][p]);
         printf(" (%*d)", 1 + (int) log10(this->nBlocks), nzC[n][this->order]);
         printf(" = ");
@@ -621,7 +627,8 @@ namespace CTF {
         );
 
     }
-    if (verbose) printf("--\n");
+    if (verbose && !this->world.rank) printf("this many tasks %ld\n",tasks.size());
+    if (verbose && !this->world.rank) printf("--\n");
     // We have to be careful here: if beta is the zero element the final
     // result would only be the result of last contraction
     // (for this non-zero element)
