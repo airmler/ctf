@@ -91,6 +91,7 @@ namespace CTF {
     comm = MPI_COMM_WORLD;
     dryRanks = dryRanks_;
     ppn = ppn_;
+    if (print == "normal") verbose = 1;
     if (print == "high") verbose = 2;
 
     this->init(comm, TOPOLOGY_GENERIC);

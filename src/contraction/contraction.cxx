@@ -2839,11 +2839,11 @@ namespace CTF_int {
         est_time = memuse;
 #endif
 
-        if (A->wrld->dryRanks && A->wrld->verbose == 2)
+        if (!A->wrld->rank && A->wrld->verbose == 2)
           printf( "t %ld j %d will use %f GB per rank and take %f s, %f %f %f"
                 , t, j, memuse/1024.0/1024./1024
                 , est_time, redist_time, contr_time, fold_time);
-        if (A->wrld->dryRanks && A->wrld->verbose == 2) C->print_map();
+        if (!A->wrld->rank && A->wrld->verbose == 2) C->print_map();
 
         ASSERT(est_time >= 0.0);
         if ((int64_t)memuse >= max_memuse){
@@ -2952,7 +2952,7 @@ namespace CTF_int {
         est_time = memuse;
 #endif
         ASSERT(est_time >= 0.0);
-        if (A->wrld->dryRanks) printf( "topo %d order %d will use %f GB per rank and take %f s, %f %f %f\n"
+        if (!A->wrld->rank && A->wrld->verbose) printf( "topo %d order %d will use %f GB per rank and take %f s, %f %f %f\n"
                                      , i, j, memuse/1024.0/1024./1024, est_time, redist_time, contr_time, fold_time);
 
 
@@ -3081,6 +3081,7 @@ namespace CTF_int {
     if (search_sig != ctr_sig_map.end()){
       ttopo = search_sig->second.ttopo;
       is_exh = search_sig->second.is_exh;
+      search_sig->second.counter++;
     } else {
       int64_t ttopo_sel, ttopo_exh;
       double gbest_time_sel, gbest_time_exh;
@@ -3120,7 +3121,7 @@ namespace CTF_int {
       if (ctr_sig_map.size() == MAX_CTR_SIG_MAP_SIZE){
         ctr_sig_map.clear();
       }
-      CTF_int::topo_info ti(ttopo, is_exh);
+      CTF_int::topo_info ti(ttopo, is_exh, gbest_time_sel);
       TAU_FSTART(ctr_sig_map_insert);
       ctr_sig_map.insert(std::pair<contraction_signature,topo_info>(sig,ti));
       TAU_FSTOP(ctr_sig_map_insert);
@@ -3224,7 +3225,7 @@ namespace CTF_int {
 //    assert(est_time == std::min(gbest_time_sel,gbest_time_exh));
 //#endif
 #endif
-    if (A->wrld->dryRanks){
+    if (!A->wrld->rank && A->wrld->verbose){
       int64_t memuse;
       double est_time, redist_time, contr_time, fold_time;
       detail_estimate_mem_and_time(dA, dB, dC, old_topo_A, old_topo_B, old_topo_C, old_map_A, old_map_B, old_map_C, nnz_frac_A, nnz_frac_B, nnz_frac_C, memuse, est_time, redist_time, contr_time, fold_time);
@@ -4308,7 +4309,6 @@ namespace CTF_int {
   #endif
 
     TAU_FSTART(contract);
-
     if (need_prescale_operands()){
       TAU_FSTART(prescale_operands);
       prescale_operands();
@@ -4420,7 +4420,7 @@ namespace CTF_int {
   #endif
 
 
-  if (A->wrld->dryRanks){
+  if (A->wrld->verbose){
     A->print_map();
     B->print_map();
     C->print_map();
@@ -4449,6 +4449,8 @@ namespace CTF_int {
       cdealloc(intra_node_lens);
     }
 #endif
+  }
+  if (A->wrld->dryRanks){
     delete ctrf;
     TAU_FSTOP(contract);
     return SUCCESS;
@@ -4767,6 +4769,7 @@ namespace CTF_int {
     if (!pass) ABORT;
 
   #endif
+
 
     delete ctrf;
 
@@ -5391,6 +5394,7 @@ namespace CTF_int {
       }
     }
 
+    auto startTime = MPI_Wtime();
     ret = new_ctr.sym_contract();//&ntype, ftsr, felm, alpha, beta);
     if (ret!= SUCCESS) return ret;
     if (C->wrld->dryRanks) return SUCCESS;
@@ -5463,7 +5467,17 @@ namespace CTF_int {
         delete new_ctr.B;
       }
     }
+    // search once more for the contraction signature
+    // and store the actual time of the calculation
+    contraction_signature sig(*this);
+    auto search_sig = ctr_sig_map.find(sig);
+    if (search_sig != ctr_sig_map.end()){
+      search_sig->second.time += MPI_Wtime() - startTime;
+    }
     return SUCCESS;
+
+
+
   #endif
   }
 
@@ -5784,6 +5798,7 @@ namespace CTF_int {
     }
   }
 
+  contraction_signature::contraction_signature(){};
   contraction_signature::contraction_signature(contraction_signature const & other){
     this->order_A = other.order_A;
     this->order_B = other.order_B;
@@ -5980,5 +5995,39 @@ namespace CTF_int {
     }
     return false;
   }
-  topo_info::topo_info(int64_t tt, bool ie) :  ttopo(tt), is_exh(ie) { }
+  void contraction_signature::print(){
+    printf("[");
+    for (int i(0); i < order_C; i++) {
+      printf("%c", (char) (idx_C[i] + 97));
+    }
+    printf("]");
+    printf(" = [");
+    for (int i(0); i < order_A; i++) {
+      printf("%c", (char) (idx_A[i] + 97));
+    }
+    printf("]");
+    printf(" * [");
+    for (int i(0); i < order_B; i++) {
+      printf("%c", (char) (idx_B[i] + 97));
+    }
+    printf("]\n");
+    printf("C: (");
+    for (int i(0); i < order_C; i++) {
+      if (i) printf(" ");
+      printf("%ld", lens_C[i]);
+    }
+    printf("); A: (");
+    for (int i(0); i < order_A; i++) {
+      if (i) printf(" ");
+      printf("%ld", lens_A[i]);
+    }
+    printf("); B: (");
+    for (int i(0); i < order_B; i++) {
+      if (i) printf(" ");
+      printf("%ld", lens_B[i]);
+    }
+    printf(")\n");
+
+  }
+  topo_info::topo_info(int64_t tt, bool ie, double t) :  ttopo(tt), is_exh(ie), timeEstimate(t)  { counter = 1; time = 0.0;}
 }

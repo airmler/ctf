@@ -28,8 +28,8 @@ namespace CTF {
       int ppn = 0;
       /** \brief set dryRun */
       int dryRanks = 0;
-      /** \brief verbosity of dryRun */
-      int verbose = 1;
+      /** \brief verbosity for contraction analysis */
+      int verbose = 0;
       /** \brief derived topologies */
       std::vector< CTF_int::topology* > topovec;
       /** \brief whether the world has been initialized */

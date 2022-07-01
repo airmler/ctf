@@ -9,6 +9,10 @@ namespace CTF_int {
   class topology; 
   class distribution;
   class mapping;
+  class contraction_signature;
+  class topo_info;
+
+  extern std::map<contraction_signature,topo_info> ctr_sig_map;
 
   /**
    * \brief class for execution distributed contraction of tensors
@@ -391,8 +395,10 @@ namespace CTF_int {
       mapping * edge_map_B;
       mapping * edge_map_C;
 
+      contraction_signature();
       contraction_signature(contraction const & ctr);
       contraction_signature(contraction_signature const & other);
+      void print();
       ~contraction_signature();
       bool operator<(contraction_signature const & other) const;
   };
@@ -401,8 +407,11 @@ namespace CTF_int {
     public:
       int64_t ttopo;
       bool is_exh;
+      double timeEstimate;
+      int64_t counter;
+      double time;
 
-      topo_info(int64_t tt, bool ie);
+      topo_info(int64_t tt, bool ie, double timeEstimate);
   };
 
 
