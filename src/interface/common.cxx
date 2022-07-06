@@ -1,6 +1,7 @@
 /*Copyright (c) 2011, Edgar Solomonik, all rights reserved.*/
 
 #include "common.h"
+#include <functional>
 #include "../shared/util.h"
 #include <random>
 
@@ -404,7 +405,72 @@ namespace CTF_int {
 #ifdef TUNE
     double st_time = MPI_Wtime();
 #endif
+
+    int rank, np, numberRanks, globalRank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &globalRank);
+    MPI_Comm_size(MPI_COMM_WORLD, &numberRanks);
+    MPI_Comm_rank(cm, &rank);
+    MPI_Comm_size(cm, &np);
+
+    std::vector<std::string> hosts(np);
+    char allNames[255*np];
+    char ownName[255];
+    int nameLength;
+    int nHosts(-1);
+    MPI_Get_processor_name(ownName, &nameLength);
+    ownName[nameLength] = '\0';
+    std::vector<std::string> ranks;
+    if (rank == root){
+      hosts[root] = ownName;
+      for (int i(0); i < np; i++){
+        if (i == root) continue;
+        char remoteName[255];
+        MPI_Recv(remoteName, 255, MPI_CHAR, i, 0, cm, MPI_STATUS_IGNORE);
+        hosts[i] = remoteName;
+      }
+    } else {
+      MPI_Send(ownName, 255, MPI_CHAR, root, 0, cm);
+    }
+    if ( rank == root) {
+      std::sort(hosts.begin(), hosts.end());
+      auto last = std::unique(hosts.begin(), hosts.end());
+      hosts.erase(last, hosts.end());
+      nHosts = hosts.size();
+    }
+
+    std::vector<int> vHosts(numberRanks);
+    if (!globalRank){
+      vHosts[0] = nHosts;
+      for (int i(1); i < numberRanks; i++){
+        int recvHost;
+        MPI_Recv(&recvHost, 1, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        vHosts[i] = recvHost;
+      }
+    } else {
+      MPI_Send(&nHosts, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+    }
+    // number of elements which are larger than -1 => ngroups
+    // total number of ranks / ngroups is the size of each group
+    // we sort reverse and remove the last elements
+    std::sort(vHosts.begin(), vHosts.end(), std::greater<int>());
+    auto last = std::find(vHosts.begin(), vHosts.end(), -1);
+    vHosts.erase(last, vHosts.end());
+    int networkMessages =  std::accumulate(vHosts.begin(), vHosts.end(), 0, std::plus<int>());
+    TAU_FSTART(bcast);
+    double start = MPI_Wtime();
     MPI_Bcast(buf, count, mdtype, root, cm);
+    double btime = MPI_Wtime() - start;
+    double glbTime, avgTime(0.0);
+    MPI_Reduce(&btime, &glbTime, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&btime, &avgTime, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    TAU_FSTOP(bcast);
+    if (!globalRank)
+      std::cout << "Having " << vHosts.size() << " teams of size "
+                << numberRanks / vHosts.size() << " with "
+                << networkMessages - vHosts.size() << " messages through the network."
+                << " bandwidth: " << count*8.0/1073741824./glbTime << " GB/s |"
+                << " maximal time: " << glbTime << " s, avg Time: " << avgTime/numberRanks << "\n";
+
 #ifdef TUNE
     MPI_Barrier(cm);
     double exe_time = MPI_Wtime()-st_time;
