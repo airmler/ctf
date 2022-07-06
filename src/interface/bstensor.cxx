@@ -26,7 +26,7 @@ namespace CTF {
                             std::vector<int> const     sym_,
                             std::vector<ivec> const    nonZero_,
                             World *                    world_,
-                            char const *               name_,
+                            std::string  const         name_,
                             bool                       profile_,
                             CTF_int::algstrct const &  sr_) {
     assert(order_ == len_.size());
@@ -38,7 +38,7 @@ namespace CTF {
                             std::vector<int64_t> const len_,
                             std::vector<ivec> const    nonZero_,
                             World *                    world_,
-                            char const *               name_,
+                            std::string const          name_,
                             bool                       profile_,
                             CTF_int::algstrct const &  sr_) {
     assert(order_ == len_.size());
@@ -54,16 +54,14 @@ namespace CTF {
     name = A.name;
     nonZeroCondition = A.nonZeroCondition;
     nBlocks = A.nBlocks;
+    //TODO
     tensors = A.tensors;
   }
 
 
   template<typename dtype>
   bsTensor<dtype>::~bsTensor(){
-    for (auto &t: tensors) {
-      delete t;
-    }
-    CTF_int::cdealloc(name);
+    for (auto &t: tensors) delete t;
   }
 
 
@@ -73,26 +71,27 @@ namespace CTF {
                              int const *                sym_,
                              std::vector<ivec>          nonZero_,
                              World *                    world_,
-                             char const *               name_,
+                             std::string const          name_,
                              bool                       profile_,
                              CTF_int::algstrct const &  sr_) {
     IASSERT(sizeof(dtype)==sr_.el_size);
     this->order = order_;
     lens = len_;
-    if (name_ != NULL) {
-      this->name = (char*)CTF_int::alloc(strlen(name_)+1);
-      strcpy(this->name, name_);
+    if (name_.size()) {
+      this->name = name_;
     } else {
-      this->name = (char*)CTF_int::alloc(7*sizeof(char));
+      this->name = "";
       for (int i=0; i<4; i++){
-        this->name[i] = 'A'+(world_->glob_wrld_rng()%26);
+        this->name += 'A'+(world_->glob_wrld_rng()%26);
       }
-      this->name[4] = '0'+(order_/10);
-      this->name[5] = '0'+(order_%10);
-      this->name[6] = '\0';
+      this->name += '0'+(order_/10);
+      this->name += '0'+(order_%10);
     }
     nBlocks = nonZero_.size();
-    if (nBlocks <= 0) { printf("Tensor %s", this->name); IASSERT(nBlocks>0);};
+    if (nBlocks <= 0) {
+      printf("Tensor %s", this->name.c_str());
+      IASSERT(nBlocks>0);
+    }
     int i(0);
     for (auto nz: nonZero_){
       if (nz.size() != order_) printf("order %d != nz.size() %ld\n"
@@ -102,7 +101,7 @@ namespace CTF {
       r.push_back(i++);
       nonZeroCondition.push_back(r);
       tensors.push_back(
-        new CTF_int::tensor(&sr_, order_, len_.data(), sym_, world_, 1, this->name, profile_)
+        new CTF_int::tensor(&sr_, order_, len_.data(), sym_, world_, 1, this->name.c_str(), profile_)
       );
     }
   }
@@ -127,6 +126,7 @@ namespace CTF {
   template<typename dtype>
   void bsTensor<dtype>::read_all(dtype *         data, int64_t const block)
   {
+  //TODO
 //    IASSERT(block>=0); //not implemented yet
     IASSERT(block< this->nBlocks);
     int64_t npair;
@@ -153,7 +153,8 @@ namespace CTF {
       // in this case it is assumed that all data (npair elements)
       // WATCH OUT: it is assumed that the global_idx is the same
       //            for all different blocks!!!
-      // it is assumed that global_idx
+      //            if you want different idx maps for differnt blocks,
+      //            use the variable 'block'
       size_t i(0);
       for (auto &t: this->tensors)
         t->write( npair, sr.mulid(), sr.addid()
@@ -205,7 +206,7 @@ namespace CTF {
 
 
   template<typename dtype>
-  char const * bsTensor<dtype>::get_name() const {
+  std::string const bsTensor<dtype>::get_name() const {
     return name;
   }
 
@@ -322,7 +323,8 @@ namespace CTF {
     }
 
     if (verbose && !this->world.rank) {
-      printf("%s[%s] <- %s[%s]\n", this->name, cidx_B, A.name, cidx_A);
+      printf( "%s[%s] <- %s[%s]\n"
+            , this->name.c_str(), cidx_B, A.name.c_str(), cidx_A);
       for (int i(0); i < this->nBlocks; i++){
         printf("bs %d: ", i);
         for (int j(0); j < this->order; j++)
@@ -375,7 +377,8 @@ namespace CTF {
       idB[i] = nzB[i][order];
     }
     if (verbose && !this->world.rank) {
-      printf("%s[%s] <- %s[%s]\n", this->name, cidx_B, A.name, cidx_A);
+      printf( "%s[%s] <- %s[%s]\n"
+            , this->name.c_str(), cidx_B, A.name.c_str(), cidx_A);
       for (auto i: idx) printf("%d ", i);
       std::cout << std::endl;
       for (int i(0); i < this->nBlocks; i++){
@@ -524,43 +527,39 @@ namespace CTF {
                                  bool              verbose) {
     if (verbose && !this->world.rank)
       printf( "%s[%s] = %s[%s] x %s[%s]:\n"
-            , this->name, cidx_C, A.name, cidx_A, B.name, cidx_B);
+            , this->name.c_str(), cidx_C, A.name.c_str(), cidx_A, B.name.c_str(), cidx_B);
 
-    // we cannot handle dublicate indices!
+    // TODO dublicates
+    // we cannot handle dublicate indices! C["i"] = A["ii"];
     checkDublicate(cidx_A);
     checkDublicate(cidx_B);
     checkDublicate(cidx_C);
-
-    ivec idxA;
-    ivec idxB;
-    std::vector< std::pair<int, int> > ca, cb, ab;
-    for (int i(0); i < this->order; i++){
-      auto c(cidx_C[i]);
-      for (int j(0); j < A.order; j++)
-        if ( cidx_A[j] == c) { idxA.push_back(j); ca.push_back({i,j}); }
-      for (int j(0); j < B.order; j++)
-        if ( cidx_B[j] == c) { idxB.push_back(j); cb.push_back({i,j}); }
-    }
-   // this is the number of indices which appear on the lhs
-    int lhsA(idxA.size()), lhsB(idxB.size());
-    int rhs(A.order - idxA.size());
-
     // TODO: We want to allow the following contractions:
     // C["ijl"] = A["ikl"] * B["kjl"]
     // which implies a contraction over k and a pointwise multiplication of l
 
-    for (int i(0); i < A.order; i++){
-      auto a(cidx_A[i]);
+
+    // idxA and idxB are vectors of integers which are used to sort the
+    // nonZero-blocks in a favorable order
+    ivec idxA, idxB;
+    std::vector< std::pair<int, int> > ca, cb, ab;
+
+    for (int i(0); i < this->order; i++){
+      auto c(cidx_C[i]);
+      for (int j(0); j < A.order; j++)
+        if ( cidx_A[j] == cidx_C[i]) { idxA.push_back(j); ca.push_back({i,j});}
       for (int j(0); j < B.order; j++)
-      if ( a == cidx_B[j]) {
-        ab.push_back({i,j});
-        idxA.push_back(i);
-        idxB.push_back(j);
-      }
+        if ( cidx_B[j] == cidx_C[i]) { idxB.push_back(j); cb.push_back({i,j});}
+    }
+    for (int i(0); i < A.order; i++)
+    for (int j(0); j < B.order; j++)
+    if ( cidx_A[i] == cidx_B[j]) {
+      ab.push_back({i,j});
+      idxA.push_back(i);
+      idxB.push_back(j);
     }
 
-    // We sort nzA, nzB. Then the contraction indices are the fast indices.
-
+    // We sort nzA, nzB such that the contraction indices are the fast indices
     auto nzA = A.nonZeroCondition;
     std::sort(nzA.begin(), nzA.end(), compare(idxA));
     auto nzB = B.nonZeroCondition;
@@ -569,8 +568,8 @@ namespace CTF {
     std::sort(nzC.begin(), nzC.end());
 
 
-
     std::vector< std::array<int,3> > tasks;
+    // now we identify the region where lhs matches rhs.
     for (size_t n(0); n < nzC.size(); n++){
       auto beginA = std::distance( nzA.begin()
                                  , std::find_if( nzA.begin()
@@ -597,20 +596,38 @@ namespace CTF {
                                                    , find(nzC[n], cb)
                                                    )
                                  );
-      auto els(endA-beginA);
-      if (els != endB - beginB){
-        if (!this->world.rank){
-          printf("Problem with the contraction:\n  %s[%s] = %s[%s] %s[%s]\n",
-                 this->name, cidx_C, A.name, cidx_A, B.name, cidx_B);
-          printf("els == endB - beginB: %ld %ld %ld\n", els, endB, beginB);
+      // as the nzA&&nzB are sorted. We should find the correct number of matches
+      if (endA-beginA == endB - beginB){
+        for (int i(0); i < endA - beginA; i++){
+          bool m(true);
+          for (auto x: ab)
+            if (nzA[beginA+i][x.first] != nzB[beginB+i][x.second]) m = false;
+          if (!m) continue;
+          tasks.push_back(
+            {nzC[n][this->order], nzA[beginA+i][A.order], nzB[beginB+i][B.order]}
+          );
         }
-        IASSERT(0);
+      } else{
+        for (int i(0); i < endA - beginA; i++)
+        for (int j(0); j < endB - beginB; j++){
+          bool m(true);
+          for (auto &x: ab)
+            if (nzA[beginA+i][x.first] != nzB[beginB+j][x.second]) m = false;
+          if (!m) continue;
+          tasks.push_back(
+            {nzC[n][this->order], nzA[beginA+i][A.order], nzB[beginB+i][B.order]}
+          );
+        }
       }
       if (verbose && !this->world.rank) {
         for (size_t p(0); p < this->order; p++) printf(" %d", nzC[n][p]);
         printf(" (%*d)", 1 + (int) log10(this->nBlocks), nzC[n][this->order]);
         printf(" = ");
-        for (size_t i(0); i < els; i++){
+        for (size_t i(0); i < endA - beginA; i++){
+            bool m(true);
+            for (auto x: ab)
+              if (nzA[beginA+i][x.first] != nzB[beginB+i][x.second]) m = false;
+            if (m == false) continue;
             if (i) printf(" + ");
             for (size_t p(0); p < A.order; p++) printf(" %d", nzA[beginA+i][p]);
             printf(" (%*d)", 1+(int) log10(A.nBlocks), nzA[beginA+i][A.order]);
@@ -621,11 +638,15 @@ namespace CTF {
         printf("\n");
       }
 
-      for (size_t i(0); i < els; i++)
-        tasks.push_back(
-          {nzC[n][this->order], nzA[beginA+i][A.order], nzB[beginB+i][B.order]}
-        );
-
+//      for (size_t i(0); i < endA-beginA; i++){
+//        bool m(true);
+//        for (auto x: ab)
+//          if (nzA[beginA+i][x.first] != nzB[beginB+i][x.second]) m = false;
+//        if (!m) continue;
+//        tasks.push_back(
+//          {nzC[n][this->order], nzA[beginA+i][A.order], nzB[beginB+i][B.order]}
+//        );
+//      }
     }
     if (verbose && !this->world.rank) printf("this many tasks %ld\n",tasks.size());
     if (verbose && !this->world.rank) printf("--\n");

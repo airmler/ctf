@@ -32,7 +32,7 @@ namespace CTF {
                std::vector<int> const     sym,
                std::vector<ivec> const    nonZero,
                World *                    wrld=get_universe(),
-               char const *               name=NULL,
+               std::string const          name="",
                bool                       profile=0,
                CTF_int::algstrct const &  sr=Ring<dtype>());
 
@@ -49,7 +49,7 @@ namespace CTF {
                std::vector<int64_t> const len,
                std::vector<ivec> const    nonZero,
                World *                    wrld=get_universe(),
-               char const *               name=NULL,
+               std::string const          name="",
                bool                       profile=0,
                CTF_int::algstrct const &  sr=Ring<dtype>());
 
@@ -67,7 +67,7 @@ namespace CTF {
                 int const *               sym,
                 std::vector<ivec>         nonZero,
                 World *                   wrld=get_universe(),
-                char const *              name=NULL,
+                std::string const         name="",
                 bool                      profile=0,
                 CTF_int::algstrct const & sr=Ring<dtype>()
                );
@@ -209,7 +209,7 @@ namespace CTF {
        * \return tensor name
        */
 
-      char const * get_name() const;
+      std::string const get_name() const;
 
       void checkDublicate(std::string t);
       size_t orderToN(ivec o);
@@ -228,7 +228,7 @@ namespace CTF {
       int64_t nBlocks;
       std::vector<int64_t> lens;
       int order;
-      char * name;
+      std::string name;
       CTF::World world;
   };
   /**
