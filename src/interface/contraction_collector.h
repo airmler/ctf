@@ -9,7 +9,7 @@ namespace CTF {
     public:
       Contraction_collector();
       ~Contraction_collector();
-      void analyze(int verbosity);
+      void analyze(int verbosity, double verbosityThreshold = -1.0);
 
   };
 
