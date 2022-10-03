@@ -5995,39 +5995,42 @@ namespace CTF_int {
     }
     return false;
   }
-  void contraction_signature::print(){
-    printf("[");
-    for (int i(0); i < order_C; i++) {
-      printf("%c", (char) (idx_C[i] + 97));
-    }
-    printf("]");
-    printf(" = [");
-    for (int i(0); i < order_A; i++) {
-      printf("%c", (char) (idx_A[i] + 97));
-    }
-    printf("]");
-    printf(" * [");
-    for (int i(0); i < order_B; i++) {
-      printf("%c", (char) (idx_B[i] + 97));
-    }
-    printf("]\n");
-    printf("C: (");
-    for (int i(0); i < order_C; i++) {
-      if (i) printf(" ");
-      printf("%ld", lens_C[i]);
-    }
-    printf("); A: (");
-    for (int i(0); i < order_A; i++) {
-      if (i) printf(" ");
-      printf("%ld", lens_A[i]);
-    }
-    printf("); B: (");
-    for (int i(0); i < order_B; i++) {
-      if (i) printf(" ");
-      printf("%ld", lens_B[i]);
-    }
-    printf(")\n");
+  std::string contraction_signature::print(){
+    std::string out("[");
+    char bufC[order_C];
+    for (int i(0); i < order_C; i++)
+      sprintf(bufC + i, "%c", ((char) (idx_C[i] + 97)) );
+    out.append(bufC);
+    out.append("] = [");
+    char bufA[order_A];
+    for (int i(0); i < order_A; i++)
+      sprintf(bufA + i, "%c", ((char) (idx_A[i] + 97)) );
+    out.append(bufA);
+    out.append("] * [");
+    char bufB[order_B];
+    for (int i(0); i < order_B; i++)
+      sprintf(bufB + i, "%c", ((char) (idx_B[i] + 97)) );
+    out.append(bufB);
+    out.append("]\n");
 
+    out.append("C: (");
+    for (int i(0); i < order_C; i++) {
+      if (i) out.append(" ");
+      out.append(std::to_string(lens_C[i]));
+    }
+    out.append("); A: (");
+    for (int i(0); i < order_A; i++) {
+      if (i) out.append(" ");
+      out.append(std::to_string(lens_A[i]));
+    }
+    out.append("); B: (");
+    for (int i(0); i < order_B; i++) {
+      if (i) out.append(" ");
+      out.append(std::to_string(lens_B[i]));
+    }
+    out.append(")\n");
+
+    return out;
   }
   topo_info::topo_info(int64_t tt, bool ie, double t) :  ttopo(tt), is_exh(ie), timeEstimate(t)  { counter = 1; time = 0.0;}
 }

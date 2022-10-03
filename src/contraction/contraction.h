@@ -398,7 +398,7 @@ namespace CTF_int {
       contraction_signature();
       contraction_signature(contraction const & ctr);
       contraction_signature(contraction_signature const & other);
-      void print();
+      std::string print();
       ~contraction_signature();
       bool operator<(contraction_signature const & other) const;
   };

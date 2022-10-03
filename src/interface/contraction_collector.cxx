@@ -48,7 +48,7 @@ namespace CTF {
         printf( "Contraction carried out %ld times; each took %f s, estimate %f s, (%f \% )\n"
               , c.counter, c.time / c.counter, c.estimate, 100.0 * c.time / totalTime);
       }
-      c.sig.print();
+      std::cout << c.sig.print() << std::endl;
       printf("--\n");
     }
   }
