@@ -26,7 +26,7 @@ namespace CTF {
                             std::vector<int> const     sym_,
                             std::vector<ivec> const    nonZero_,
                             World *                    world_,
-                            std::string  const         name_,
+                            std::string const          name_,
                             bool                       profile_,
                             CTF_int::algstrct const &  sr_) {
     assert(order_ == len_.size());
@@ -86,6 +86,7 @@ namespace CTF {
       }
       this->name += '0'+(order_/10);
       this->name += '0'+(order_%10);
+      this->name[6] = '\0';
     }
     nBlocks = nonZero_.size();
     if (nBlocks <= 0) {
@@ -126,15 +127,10 @@ namespace CTF {
   template<typename dtype>
   void bsTensor<dtype>::read_all(dtype *         data, int64_t const block)
   {
-  //TODO
+//  TODO
 //    IASSERT(block>=0); //not implemented yet
     IASSERT(block< this->nBlocks);
     int64_t npair;
-//    printf("read_all:We have %ld blocks:\n", this->nBlocks);
-//    for (auto nz: this->nonZeroCondition) {
-//      for (auto a: nz) printf("%d ", a);
-//      printf("\n");
-//    }
     this->tensors[0]->allread(&npair, (char *) data, false);
   }
 
@@ -150,11 +146,7 @@ namespace CTF {
 
     IASSERT(block< this->nBlocks);
     if (block < 0){
-      // in this case it is assumed that all data (npair elements)
-      // WATCH OUT: it is assumed that the global_idx is the same
-      //            for all different blocks!!!
-      //            if you want different idx maps for differnt blocks,
-      //            use the variable 'block'
+      // WATCH OUT: global_idx is the same for all different blocks!!!
       size_t i(0);
       for (auto &t: this->tensors)
         t->write( npair, sr.mulid(), sr.addid()
@@ -251,13 +243,11 @@ namespace CTF {
                             dtype                  beta,
                             char const *           cidx_B,
                             bool                   verbose) {
-// this whole algorithm works only if B.nonZeroCondition is sorted!!
 // sum can be either a permutation
 // a) B["Gia"] = A["Gai"]
 // or an expression like
 // b) B["ijab"] = A["i"]
 // in both cases we have to find the correct non-zero block summation
-    ivec idA(this->nBlocks), idB(this->nBlocks);
     // TODO: we have to resolve this assert. if the right side has an higher
     //       order, it implies a sum over the additional index
     IASSERT(this->order >= A.order);
@@ -268,8 +258,8 @@ namespace CTF {
     // We initialize these indices as the nonZeroCondition of B
     auto nzA(this->nonZeroCondition);   auto nzB(this->nonZeroCondition);
     std::sort( nzB.begin(), nzB.end());
+
     // idx maps the indices on the left with the incides on the right
-    // it is to find the indices of B in tensor A
     std::vector<int> idx;
     for (int i(0); i < A.order; i++){
       auto it = std::find( std::begin(idxB), std::end(idxB), idxA[i]);
@@ -278,12 +268,18 @@ namespace CTF {
     }
 
     if (this->order == A.order){
+      IASSERT(this->nBlocks == A.nBlocks);
       // i.e.: B["Gia"] = A["Gai"] -> idx: 0,2,1
       // we sort nzA according to the indices-sequence in idx
-      if (verbose && !this->world.rank) { for (auto i: idx) printf("%d ", i); std::cout << std::endl;}
+      if (verbose && !this->world.rank) {
+        for (auto i: idx) printf("%d ", i);
+        std::cout << std::endl;
+      }
       std::sort(nzA.begin(), nzA.end(), compare(idx));
     }
     else {
+    // Right now: this else means left hand side has more indices than the
+    //            right hand side
     // we remove the columns in nzA which do not appear on the right side
     // example: "ia" = "i"
     // {0,0} = {0}, {1,0} = {1}, {0,1} = {0}, {1,1} = {1}
@@ -317,10 +313,6 @@ namespace CTF {
         IASSERT(replaced);
       }
     }
-    for (int i(0); i < this->nBlocks; i++){
-      idA[i] = nzA[i][A.order];
-      idB[i] = nzB[i][this->order];
-    }
 
     if (verbose && !this->world.rank) {
       printf( "%s[%s] <- %s[%s]\n"
@@ -329,9 +321,9 @@ namespace CTF {
         printf("bs %d: ", i);
         for (int j(0); j < this->order; j++)
           printf("%d ", nzB[i][j]);
-        printf("| %d <- ", idB[i]);
+        printf("| %d <- ", nzB[i][this->order]);
         for (int j(0); j < A.order; j++) printf("%d ", nzA[i][j]);
-        printf(" | %d\n", idA[i]);
+        printf(" | %d\n", nzA[i][A.order]);
       }
     }
 
@@ -339,8 +331,8 @@ namespace CTF {
     for (int i(0); i < this->nBlocks; i++){
       CTF_int::summation sum
         = CTF_int::summation(
-            A.tensors[idA[i]], cidx_A, (char*)&alpha,
-            this->tensors[idB[i]], cidx_B, (char*)&beta
+            A.tensors[nzA[i][A.order]], cidx_A, (char*)&alpha,
+            this->tensors[nzB[i][this->order]], cidx_B, (char*)&beta
           );
       sum.execute();
     }
@@ -354,53 +346,100 @@ namespace CTF {
                             char const *           cidx_B,
                             Univar_Function<dtype>& fseq,
                             bool                   verbose){
-    IASSERT(this->order == A.order);
-    int nBlocks = this->nBlocks;
-    ivec idA(nBlocks), idB(nBlocks);
-    IASSERT(this->nBlocks == A.nBlocks);
-    checkDublicate(cidx_A); checkDublicate(cidx_B);
+    // sum can be either a permutation
+    // a) B["Gia"] = A["Gai"]
+    // or an expression like
+    // b) B["ijab"] = A["i"]
+    // in both cases we have to find the correct non-zero block summation
+    // TODO: we have to resolve this assert. if the right side has an higher
+    //       order, it implies a sum over the additional index
+    IASSERT(this->order >= A.order);
+    IASSERT(this->nBlocks >= A.nBlocks);
+    checkDublicate(cidx_A);  checkDublicate(cidx_B);
     std::string idxA(cidx_A), idxB(cidx_B);
-    std::vector<int> idx(order+1);
-    for (int i(0); i < order; i++){
-      auto p = std::find(std::begin(idxA), std::end(idxA), idxB[i]);
-      idx[i] = std::distance(std::begin(idxA), p);
-    }
-    idx[order] = order;
+   // These are the nonZeroIndices for A
+    // We initialize these indices as the nonZeroCondition of B
+    auto nzA(this->nonZeroCondition);   auto nzB(this->nonZeroCondition);
+    std::sort( nzB.begin(), nzB.end());
 
-    auto nzA = A.nonZeroCondition;
-    auto nzB = this->nonZeroCondition;
-    std::sort(nzA.begin(), nzA.end(), compare(idx));
-    std::sort(nzB.begin(), nzB.end());
-
-    for (int i(0); i < this->nBlocks; i++){
-      idA[i] = nzA[i][order];
-      idB[i] = nzB[i][order];
+    // idx maps the indices on the left with the incides on the right
+    std::vector<int> idx;
+    for (int i(0); i < A.order; i++){
+      auto it = std::find( std::begin(idxB), std::end(idxB), idxA[i]);
+      if (it == std::end(idxB)) continue;
+      idx.push_back( std::distance( std::begin(idxB), it ) );
     }
+
+    if (this->order == A.order){
+      IASSERT(this->nBlocks == A.nBlocks);
+      // i.e.: B["Gia"] = A["Gai"] -> idx: 0,2,1
+      // we sort nzA according to the indices-sequence in idx
+      if (verbose && !this->world.rank) {
+        for (auto i: idx) printf("%d ", i);
+        std::cout << std::endl;
+      }
+      std::sort(nzA.begin(), nzA.end(), compare(idx));
+    }
+    else {
+    // Right now: this else means left hand side has more indices than the
+    //            right hand side
+    // we remove the columns in nzA which do not appear on the right side
+    // example: "ia" = "i"
+    // {0,0} = {0}, {1,0} = {1}, {0,1} = {0}, {1,1} = {1}
+      std::vector<int> iidx(this->order);
+      std::vector<int> toRemove;
+      std::iota(iidx.begin(), iidx.end(), 0);
+      std::set_difference( iidx.begin(), iidx.end()
+                         , idx.begin(), idx.end()
+                         , std::back_inserter(toRemove)
+                         );
+      if (verbose && !this->world.rank) printf("\n\n");
+      if (verbose && !this->world.rank) for (auto t: toRemove) printf("%d ", t);
+      if (verbose && !this->world.rank) printf("\n\n");
+      std::sort(nzA.begin(), nzA.end());
+      for (auto &n: nzA){
+        for (auto t: toRemove) n[t] = -1;
+        n.erase( std::remove( n.begin(), n.end(), -1), n.end() );
+        if (verbose && !this->world.rank) {
+          for (auto nn: n) printf("%d ", nn);
+          printf("\n");
+        }
+        // the last element in n is the index of the nonZeroCondition
+        // this vector should appear in the list of the nonZeroConditions of A
+        bool replaced(false);
+        for (auto a: A.nonZeroCondition){
+          if ( std::equal( a.begin(), a.end() - 1, n.begin()) ){
+            n.back() = a.back();
+            replaced = true;
+          }
+        }
+        IASSERT(replaced);
+      }
+    }
+
     if (verbose && !this->world.rank) {
       printf( "%s[%s] <- %s[%s]\n"
             , this->name.c_str(), cidx_B, A.name.c_str(), cidx_A);
-      for (auto i: idx) printf("%d ", i);
-      std::cout << std::endl;
       for (int i(0); i < this->nBlocks; i++){
         printf("bs %d: ", i);
-        for (int j(0); j < order; j++) printf("%d ", nzB[i][j]);
-        printf("| %d -> ", idB[i]);
-        for (int j(0); j < order; j++) printf("%d ", nzA[i][j]);
-        printf(" | %d\n", idA[i]);
+        for (int j(0); j < this->order; j++)
+          printf("%d ", nzB[i][j]);
+        printf("| %d <- ", nzB[i][this->order]);
+        for (int j(0); j < A.order; j++) printf("%d ", nzA[i][j]);
+        printf(" | %d\n", nzA[i][A.order]);
       }
     }
+
 
     for (int i(0); i < this->nBlocks; i++){
       CTF_int::summation sum
         = CTF_int::summation(
-            A.tensors[idA[i]], cidx_A, (char*)&alpha,
-            this->tensors[idB[i]], cidx_B, (char*)&beta,&fseq
+            A.tensors[nzA[i][A.order]], cidx_A, (char*)&alpha,
+            this->tensors[nzB[i][this->order]], cidx_B, (char*)&beta, &fseq
           );
       sum.execute();
     }
   }
-
-
 
 
   template<typename dtype>
@@ -413,10 +452,9 @@ namespace CTF {
                             std::vector<ivec> nonZeroB,
                             bool              verbose) {
     IASSERT(this->order == A.order);
-    int nBlocks = nonZeroA.size();
     IASSERT(nonZeroA.size() == nonZeroB.size());
-    int *nzIdxA = new int[nBlocks];
-    int *nzIdxB = new int[nBlocks];
+    std::vector<int> nzIdxA(nonZeroA.size());
+    std::vector<int> nzIdxB(nonZeroB.size());
     checkDublicate(cidx_A);
     checkDublicate(cidx_B);
 
@@ -443,7 +481,7 @@ namespace CTF {
         printf(" | %d\n", nzIdxB[i]);
       }
 
-   }
+    }
 
     for (int64_t i(0); i < nonZeroA.size(); i++){
       CTF_int::summation sum
@@ -454,8 +492,6 @@ namespace CTF {
 
       sum.execute();
     }
-    free(nzIdxA);
-    free(nzIdxB);
   };
 
   template<typename dtype>
@@ -469,10 +505,9 @@ namespace CTF {
                             Univar_Function<dtype> &fseq,
                             bool                   verbose) {
     IASSERT(this->order == A.order);
-    int Blocks = nonZeroA.size();
     IASSERT(nonZeroA.size() == nonZeroB.size());
-    int *nzIdxA = new int[nBlocks];
-    int *nzIdxB = new int[nBlocks];
+    std::vector<int> nzIdxA(nonZeroA.size());
+    std::vector<int> nzIdxB(nonZeroB.size());
 
     checkDublicate(cidx_A);
     checkDublicate(cidx_B);
@@ -500,19 +535,17 @@ namespace CTF {
         printf(" | %d\n", nzIdxB[i]);
       }
 
-   }
+    }
 
-   for (int64_t i(0); i < nonZeroA.size(); i++){
-     CTF_int::summation sum
-       = CTF_int::summation(
-           A.tensors[nzIdxA[i]], cidx_A, (char*)&alpha,
-           this->tensors[nzIdxB[i]], cidx_B, (char*)&beta, &fseq
-         );
+    for (int64_t i(0); i < nonZeroA.size(); i++){
+      CTF_int::summation sum
+        = CTF_int::summation(
+            A.tensors[nzIdxA[i]], cidx_A, (char*)&alpha,
+            this->tensors[nzIdxB[i]], cidx_B, (char*)&beta, &fseq
+          );
 
-     sum.execute();
-   }
-    free(nzIdxA);
-    free(nzIdxB);
+      sum.execute();
+    }
   };
 
 
@@ -525,32 +558,32 @@ namespace CTF {
                                  dtype             beta,
                                  char const *      cidx_C,
                                  bool              verbose) {
+    // we cannot handle dublicate indices: C["ij"] = A["ik"] B["kkj"]
+    // TODO: We want to allow the following contractions:
+    // C["ijl"] = A["ikl"] * B["kjl"]
+    // which implies a contraction over k and a pointwise multiplication of l
+    checkDublicate(cidx_A); checkDublicate(cidx_B); checkDublicate(cidx_C);
+
     if (verbose && !this->world.rank)
       printf( "%s[%s] = %s[%s] x %s[%s]:\n"
             , this->name.c_str(), cidx_C, A.name.c_str(), cidx_A, B.name.c_str(), cidx_B);
 
-    // TODO dublicates
-    // we cannot handle dublicate indices! C["i"] = A["ii"];
-    checkDublicate(cidx_A);
-    checkDublicate(cidx_B);
-    checkDublicate(cidx_C);
-    // TODO: We want to allow the following contractions:
-    // C["ijl"] = A["ikl"] * B["kjl"]
-    // which implies a contraction over k and a pointwise multiplication of l
+    // Workflow: - idxA && idxB are std::vector<int> which determine the way nonZeroConditions
+    //             of A && B are sorted. E.g.: C["ijab"] = A["ikca"] B["bckj"], A is sorted such
+    //             that ia also the slowest indices (for B it would be jb).
+    //           - ca,cb,ab are the indices which match between C && A (and the other tensors,
+    //             respectively)
 
-
-    // idxA and idxB are vectors of integers which are used to sort the
-    // nonZero-blocks in a favorable order
     ivec idxA, idxB;
     std::vector< std::pair<int, int> > ca, cb, ab;
-
+    // Find the indices of A && B which appear on C
     for (int i(0); i < this->order; i++){
-      auto c(cidx_C[i]);
       for (int j(0); j < A.order; j++)
-        if ( cidx_A[j] == cidx_C[i]) { idxA.push_back(j); ca.push_back({i,j});}
+        if ( cidx_A[j] == cidx_C[i]) { idxA.push_back(j); ca.push_back({i,j}); }
       for (int j(0); j < B.order; j++)
-        if ( cidx_B[j] == cidx_C[i]) { idxB.push_back(j); cb.push_back({i,j});}
+        if ( cidx_B[j] == cidx_C[i]) { idxB.push_back(j); cb.push_back({i,j}); }
     }
+
     for (int i(0); i < A.order; i++)
     for (int j(0); j < B.order; j++)
     if ( cidx_A[i] == cidx_B[j]) {
@@ -559,7 +592,7 @@ namespace CTF {
       idxB.push_back(j);
     }
 
-    // We sort nzA, nzB such that the contraction indices are the fast indices
+    // We sort nzA, nzB such that the contraction indices are the fastest.
     auto nzA = A.nonZeroCondition;
     std::sort(nzA.begin(), nzA.end(), compare(idxA));
     auto nzB = B.nonZeroCondition;
@@ -567,9 +600,16 @@ namespace CTF {
     auto nzC = this->nonZeroCondition;
     std::sort(nzC.begin(), nzC.end());
 
-
+    // We write all tasks in the following object
     std::vector< std::array<int,3> > tasks;
-    // now we identify the region where lhs matches rhs.
+
+    // We loop over all nonZeroConditions in C and look for
+    // a given nonZeroCondition of C for all nonZeroConditions of A && B
+    // which fulfill the overall nonZeroConditions
+    // Eg. C[abij] = A[akic] * B[kbcj] for C[1001] lead to the following
+    // conditions for A: A[1001] && A[1100], and B: B[0011] && B[1001]
+    // As we have sorted A && B, the corresponding tuples appear consecutive
+    // in the list
     for (size_t n(0); n < nzC.size(); n++){
       auto beginA = std::distance( nzA.begin()
                                  , std::find_if( nzA.begin()
@@ -596,18 +636,9 @@ namespace CTF {
                                                    , find(nzC[n], cb)
                                                    )
                                  );
-      // as the nzA&&nzB are sorted. We should find the correct number of matches
-      if (endA-beginA == endB - beginB){
-        for (int i(0); i < endA - beginA; i++){
-          bool m(true);
-          for (auto x: ab)
-            if (nzA[beginA+i][x.first] != nzB[beginB+i][x.second]) m = false;
-          if (!m) continue;
-          tasks.push_back(
-            {nzC[n][this->order], nzA[beginA+i][A.order], nzB[beginB+i][B.order]}
-          );
-        }
-      } else{
+
+      auto els(endA-beginA);
+      if (els != endB - beginB){
         for (int i(0); i < endA - beginA; i++)
         for (int j(0); j < endB - beginB; j++){
           bool m(true);
@@ -615,19 +646,28 @@ namespace CTF {
             if (nzA[beginA+i][x.first] != nzB[beginB+j][x.second]) m = false;
           if (!m) continue;
           tasks.push_back(
+            {nzC[n][this->order], nzA[beginA+i][A.order], nzB[beginB+j][B.order]}
+          );
+        }
+      } else {
+        for (size_t i(0); i < els; i++){
+// if we require the following, V = G * G would not work properly!
+//          bool m(true);
+//          for (auto x: ab)
+//            if (nzA[beginA+i][x.first] != nzB[beginB+i][x.second]) m = false;
+//          if (!m) continue;
+          tasks.push_back(
             {nzC[n][this->order], nzA[beginA+i][A.order], nzB[beginB+i][B.order]}
           );
         }
       }
+
+
       if (verbose && !this->world.rank) {
         for (size_t p(0); p < this->order; p++) printf(" %d", nzC[n][p]);
         printf(" (%*d)", 1 + (int) log10(this->nBlocks), nzC[n][this->order]);
         printf(" = ");
-        for (size_t i(0); i < endA - beginA; i++){
-            bool m(true);
-            for (auto x: ab)
-              if (nzA[beginA+i][x.first] != nzB[beginB+i][x.second]) m = false;
-            if (m == false) continue;
+        for (size_t i(0); i < els; i++){
             if (i) printf(" + ");
             for (size_t p(0); p < A.order; p++) printf(" %d", nzA[beginA+i][p]);
             printf(" (%*d)", 1+(int) log10(A.nBlocks), nzA[beginA+i][A.order]);
@@ -638,15 +678,6 @@ namespace CTF {
         printf("\n");
       }
 
-//      for (size_t i(0); i < endA-beginA; i++){
-//        bool m(true);
-//        for (auto x: ab)
-//          if (nzA[beginA+i][x.first] != nzB[beginB+i][x.second]) m = false;
-//        if (!m) continue;
-//        tasks.push_back(
-//          {nzC[n][this->order], nzA[beginA+i][A.order], nzB[beginB+i][B.order]}
-//        );
-//      }
     }
     if (verbose && !this->world.rank) printf("this many tasks %ld\n",tasks.size());
     if (verbose && !this->world.rank) printf("--\n");
