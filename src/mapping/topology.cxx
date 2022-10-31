@@ -161,7 +161,6 @@ namespace CTF_int {
         int sz = nodes[i].size() - 1;
         MPI_Allreduce(&sz, &sum_comm_nodes[i], 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
         tot_comm_nodes[i] = sum_comm_nodes[i] / (double)glb_comm.np;
-        if (!rank) printf("order %d. ppn %d. tot_comm %lf\n", i, ppn, tot_comm_nodes[i]);
       }
     }
     stride = 1; cut = 0;
