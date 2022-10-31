@@ -62,6 +62,7 @@ namespace CTF_int {
 
   topology::topology(topology const & other) : glb_comm(other.glb_comm), unord_glb_comm(other.unord_glb_comm) {
     order        = other.order;
+    ppn          = other.ppn;
 
     lens         = (int*)CTF_int::alloc(order*sizeof(int));
     memcpy(lens, other.lens, order*sizeof(int));
@@ -98,10 +99,12 @@ namespace CTF_int {
   topology::topology(int         order_,
                      int const * lens_,
                      CommData    cdt,
+                     int         ppn_,
                      bool        activate,
                      int const * intra_node_lens) : unord_glb_comm(cdt), glb_comm(cdt) {
     order        = order_;
     lens         = (int*)CTF_int::alloc(order_*sizeof(int));
+    ppn          = ppn_;
     lda          = (int*)CTF_int::alloc(order_*sizeof(int));
     dim_comm     = (CommData*)CTF_int::alloc(order_*sizeof(CommData));
     is_activated = false;
@@ -117,6 +120,7 @@ namespace CTF_int {
       lda[i] = lda[i-1] * lens[i-1];
     }
 
+
     if (intra_node_lens == NULL){    
       is_reordered = false;
       //glb_comm = cdt;
@@ -125,19 +129,55 @@ namespace CTF_int {
       is_reordered = true;
       glb_comm = CommData(new_rank, 0, cdt.np);
     }
-    int stride = 1, cut = 0;
+    int stride, cut;
+    double tot_comm_nodes[order];
     int rank = glb_comm.rank;
+    int my_color[order];
+    if (intra_node_lens == NULL) {
+      stride = 1; cut = 0;
+      for (int i = 0; i < order; i++) {
+        my_color[i] = rank / (stride * lens[i]) * stride + cut;
+        stride *= lens[i];
+        cut = (rank - (rank/stride)*stride);
+      }
+      std::vector<int> nodes[order];
+      for (int r = 0; r < glb_comm.np; r++) {
+        stride = 1; cut = 0;
+        for (int i = 0; i < order; i++) {
+          int color = r / (stride * lens[i]) * stride + cut;
+          if (color == my_color[i]) {
+            int node_id = r / ppn;
+            if (std::find(nodes[i].begin(), nodes[i].end(), node_id) == nodes[i].end()) {
+              nodes[i].push_back(node_id);
+            }
+          }
+          stride *= lens[i];
+          cut = (r - (r/stride)*stride);
+        }
+      }
+      std::vector<int> sum_comm_nodes(order);
+      for (int i = 0; i < order; i++) {
+        // number of nodes I need to communicate with
+        int sz = nodes[i].size() - 1;
+        MPI_Allreduce(&sz, &sum_comm_nodes[i], 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+        tot_comm_nodes[i] = sum_comm_nodes[i] / (double)glb_comm.np;
+        if (!rank) printf("order %d. ppn %d. tot_comm %lf\n", i, ppn, tot_comm_nodes[i]);
+      }
+    }
+    stride = 1; cut = 0;
     for (int i=0; i<order; i++){
       lda[i] = stride;
-      if (intra_node_lens == NULL)    
+      if (intra_node_lens == NULL){
         dim_comm[i] = CommData(((rank/stride)%lens[i]),
                                (((rank/(stride*lens[i]))*stride)+cut),
-                               lens[i]);
+                               lens[i],
+                               tot_comm_nodes[i]);
+      }
       else
         dim_comm[i] = CommData(((rank/stride)%lens[i]),
                                (((rank/(stride*lens[i]))*stride)+cut),
                                lens[i],
-                               intra_node_lens[i]);
+                               (lens[i]/intra_node_lens[i])-1);
       stride*=lens[i];
       cut = (rank - (rank/stride)*stride);
     }
@@ -166,7 +206,8 @@ namespace CTF_int {
   }
 
   topology * get_phys_topo(CommData glb_comm,
-                           TOPOLOGY mach){
+                           TOPOLOGY mach,
+                           int ppn){
     int np = glb_comm.np;
     int * dl;
     int * dim_len;
@@ -174,14 +215,14 @@ namespace CTF_int {
     if (mach == NO_TOPOLOGY){
       dl = (int*)CTF_int::alloc(sizeof(int));
       dl[0] = np;
-      topo = new topology(1, dl, glb_comm, 1);
+      topo = new topology(1, dl, glb_comm, ppn, 1);
       CTF_int::cdealloc(dl);
       return topo;
     }
     if (mach == TOPOLOGY_GENERIC){
       int order;
       factorize(np, &order, &dim_len);
-      topo = new topology(order, dim_len, glb_comm, 1);
+      topo = new topology(order, dim_len, glb_comm, ppn, 1);
       if (order>0) CTF_int::cdealloc(dim_len);
       return topo;
     } else if (mach == TOPOLOGY_BGQ) {
@@ -212,7 +253,7 @@ namespace CTF_int {
             dim++;
           }
         }
-        topo = new topology(dim, topo_dims, glb_comm, 1);
+        topo = new topology(dim, topo_dims, glb_comm, ppn, 1);
         CTF_int::cdealloc(topo_dims);
         return topo;
       } else 
@@ -220,7 +261,7 @@ namespace CTF_int {
       {
         int order;
         factorize(np, &order, &dim_len);
-        topo = new topology(order, dim_len, glb_comm, 1);
+        topo = new topology(order, dim_len, glb_comm, ppn, 1);
         CTF_int::cdealloc(dim_len);
         return topo;
       }
@@ -228,7 +269,7 @@ namespace CTF_int {
       int order;
       if (1<<(int)log2(np) != np){
         factorize(np, &order, &dim_len);
-        topo = new topology(order, dim_len, glb_comm, 1);
+        topo = new topology(order, dim_len, glb_comm, ppn, 1);
         CTF_int::cdealloc(dim_len);
         return topo;
       }
@@ -313,7 +354,7 @@ namespace CTF_int {
           factorize(np, &order, &dim_len);
           break;
       }
-      topo = new topology(order, dim_len, glb_comm, 1);
+      topo = new topology(order, dim_len, glb_comm, ppn, 1);
       CTF_int::cdealloc(dim_len);
       return topo;
     } else if (mach == TOPOLOGY_8D) {
@@ -321,7 +362,7 @@ namespace CTF_int {
       int * dim_len;
       if (1<<(int)log2(np) != np){
         factorize(np, &order, &dim_len);
-        topo = new topology(order, dim_len, glb_comm, 1);
+        topo = new topology(order, dim_len, glb_comm, ppn, 1);
         CTF_int::cdealloc(dim_len);
         return topo;
       }
@@ -459,14 +500,14 @@ namespace CTF_int {
           break;
 
       }
-      topo = new topology(order, dim_len, glb_comm, 1);
+      topo = new topology(order, dim_len, glb_comm, ppn, 1);
       CTF_int::cdealloc(dim_len);
       return topo;
     } else {
       int order;
       dim_len = (int*)CTF_int::alloc((log2(np)+1)*sizeof(int));
       factorize(np, &order, &dim_len);
-      topo = new topology(order, dim_len, glb_comm, 1);
+      topo = new topology(order, dim_len, glb_comm, ppn, 1);
       return topo;
     }
   }
@@ -565,17 +606,17 @@ namespace CTF_int {
   }
 
 
-  std::vector< topology* > create_topos_from_shapes(std::vector< std::vector<int>* > shapes, CommData cdt){
+  std::vector< topology* > create_topos_from_shapes(std::vector< std::vector<int>* > shapes, CommData cdt, int ppn){
     std::vector< topology* > topos;
     for (int i=0; i<(int)shapes.size(); i++){
-      topos.push_back(new topology(shapes[i]->size(), &shapes[i]->operator[](0), cdt));
+      topos.push_back(new topology(shapes[i]->size(), &shapes[i]->operator[](0), cdt, ppn));
     }
     return topos;
   }
 
-  std::vector< topology* > get_generic_topovec(CommData cdt){
+  std::vector< topology* > get_generic_topovec(CommData cdt, int ppn){
     std::vector< std::vector<int> * > shapes = get_all_shapes(cdt.np);
-    std::vector< topology* > topos = create_topos_from_shapes(shapes, cdt);
+    std::vector< topology* > topos = create_topos_from_shapes(shapes, cdt, ppn);
     for (int i=0; i<(int)shapes.size(); i++){
       delete shapes[i];
     }

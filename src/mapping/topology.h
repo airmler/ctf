@@ -23,7 +23,8 @@ namespace CTF_int {
       int        is_reordered;
       // whether dim_comm communicators have been activated
       bool       is_activated;
-
+      /** \brief number of processors per physical node (optional / can be 1)*/
+      int        ppn;
       // list of communicators along fibers of each dimension of torus 
       CommData * dim_comm;
       // global communicator, ordered as in torus given by dim_comm
@@ -62,6 +63,7 @@ namespace CTF_int {
       topology(int         order_,
                int const * lens_,
                CommData    cdt,
+               int         ppn=1,
                bool        activate=false,
                int const * intra_node_lens=NULL);
      
@@ -92,7 +94,8 @@ namespace CTF_int {
    * \param[in] mach specified topology
    */
   topology * get_phys_topo(CommData glb_comm,
-                           TOPOLOGY mach);
+                           TOPOLOGY mach,
+                           int ppn_ = 1);
 
 
   /**
@@ -107,7 +110,7 @@ namespace CTF_int {
    * \brief computes all topology configurations given undelying physical topology information
    * \param[in] cdt global communicator
    */
-  std::vector< topology* > get_generic_topovec(CommData   cdt);
+  std::vector< topology* > get_generic_topovec(CommData   cdt, int ppn_ = 1);
 
   /**
    * \brief folds specified topology and all of its permutations into all configurations of lesser dimensionality
