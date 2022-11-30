@@ -184,6 +184,12 @@ namespace CTF {
                bool              verbose=false);
 
 
+
+
+     void relabelBlocks( std::vector<ivec> nonZeroOut
+                       , std::vector<ivec> nonZeroIn
+                       );
+
      /**
        * \brief contracts C[idx_C] = beta*C[idx_C] + alpha*A[idx_A]*B[idx_B]
        * \param[in] alpha A*B scaling factor

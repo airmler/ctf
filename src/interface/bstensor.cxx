@@ -230,7 +230,7 @@ namespace CTF {
   {
     return [c, ca] (const ivec &a) -> int {
       for (size_t i(0); i < ca.size(); i++)
-      for (auto &x: ca)  if ( a[x.second] != c[x.first]) return false;
+      for (auto &x: ca)  if (a[x.second] != c[x.first]) return false;
       return true;
     };
   }
@@ -550,6 +550,26 @@ namespace CTF {
 
 
   template<typename dtype>
+  void bsTensor<dtype>::relabelBlocks( std::vector<ivec> nonZeroOut
+                                     , std::vector<ivec> nonZeroIn
+                                     ) {
+
+    IASSERT( nonZeroIn.size() == nonZeroOut.size() );
+    IASSERT( this->nonZeroCondition.size() == nonZeroIn.size() );
+    for (size_t i(0); i < nonZeroIn.size(); i++){
+      // find the nonZeroCondition in tensor A
+      IASSERT(nonZeroIn[i].size() == nonZeroOut[i].size());
+      auto it = std::find( this->nonZeroCondition.begin()
+                         , this->nonZeroCondition.end()
+                         , nonZeroIn[i]);
+      auto j = std::distance( this->nonZeroCondition.begin(), it);
+      if ( j >= nonZeroIn.size() ) IASSERT(0);
+      IASSERT(this->nonZeroCondition[j].size() == nonZeroOut[i].size());
+      this->nonZeroCondition[j] = nonZeroOut[i];
+    }
+  }
+
+  template<typename dtype>
   void bsTensor<dtype>::contract(dtype             alpha,
                                  bsTensor<dtype>   & A,
                                  char const *      cidx_A,
@@ -568,20 +588,27 @@ namespace CTF {
       printf( "%s[%s] = %s[%s] x %s[%s]:\n"
             , this->name.c_str(), cidx_C, A.name.c_str(), cidx_A, B.name.c_str(), cidx_B);
 
-    // Workflow: - idxA && idxB are std::vector<int> which determine the way nonZeroConditions
-    //             of A && B are sorted. E.g.: C["ijab"] = A["ikca"] B["bckj"], A is sorted such
+    // Workflow: - idxA && idxB are std::vector<int> which determine the way
+    //             nonZeroConditions of A && B are sorted.
+    //             E.g.: C["ijab"] = A["ikca"] B["bckj"], A is sorted such
     //             that ia also the slowest indices (for B it would be jb).
-    //           - ca,cb,ab are the indices which match between C && A (and the other tensors,
-    //             respectively)
+    //           - ca,cb,ab are the indices which match between C && A
+    //             (and the other tensors, respectively)
 
     ivec idxA, idxB;
     std::vector< std::pair<int, int> > ca, cb, ab;
     // Find the indices of A && B which appear on C
     for (int i(0); i < this->order; i++){
       for (int j(0); j < A.order; j++)
-        if ( cidx_A[j] == cidx_C[i]) { idxA.push_back(j); ca.push_back({i,j}); }
+      if ( cidx_A[j] == cidx_C[i]) {
+        idxA.push_back(j);
+        ca.push_back({i,j});
+       }
       for (int j(0); j < B.order; j++)
-        if ( cidx_B[j] == cidx_C[i]) { idxB.push_back(j); cb.push_back({i,j}); }
+      if ( cidx_B[j] == cidx_C[i]) {
+        idxB.push_back(j);
+        cb.push_back({i,j});
+      }
     }
 
     for (int i(0); i < A.order; i++)
@@ -652,10 +679,10 @@ namespace CTF {
       } else {
         for (size_t i(0); i < els; i++){
 // if we require the following, V = G * G would not work properly!
-//          bool m(true);
-//          for (auto x: ab)
-//            if (nzA[beginA+i][x.first] != nzB[beginB+i][x.second]) m = false;
-//          if (!m) continue;
+          bool m(true);
+          for (auto x: ab)
+            if (nzA[beginA+i][x.first] != nzB[beginB+i][x.second]) m = false;
+          if (!m) continue;
           tasks.push_back(
             {nzC[n][this->order], nzA[beginA+i][A.order], nzB[beginB+i][B.order]}
           );
