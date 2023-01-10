@@ -88,6 +88,9 @@ namespace CTF_int {
     return nvirt*rec_ctr->est_time_rec(nlyr);
   }
 
+  double ctr_virt::est_comm_time(int nlyr) {
+    return 0.0;
+  }
 
   int64_t ctr_virt::mem_fp(){
     return (order_A+order_B+order_C+(3+VIRT_NTD)*num_dim)*sizeof(int);
@@ -459,6 +462,10 @@ namespace CTF_int {
 
   double seq_tsr_ctr::est_time_rec(int nlyr){
     return est_time_fp(nlyr);
+  }
+
+  double seq_tsr_ctr::est_comm_time(int nlyr){
+    return 0.0;
   }
 
   void seq_tsr_ctr::run(char * A, char * B, char * C){

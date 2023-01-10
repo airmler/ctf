@@ -103,6 +103,11 @@ namespace CTF_int{
        */
       double est_time_rec(int nlyr);
       /**
+       * \brief returns the time needed for the summa communication
+       * \return communication time
+       */
+      double est_comm_time(int nlyr);
+      /**
        * \brief estimate the inter-node communication volume of this kernel
        * \return volume in bytes, represented as floating point
        */

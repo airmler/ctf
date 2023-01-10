@@ -1,13 +1,13 @@
 namespace CTF_int{
   double csrred_mdl_init[] = {3.0689E-03, 2.2385E-03, 4.4815E-07};          // not used I guess (at least not in dense)
   double csrred_mdl_cst_init[] = {-1.8323E-04, 1.3076E-04, 2.8732E-09};     // not used I guess (at least not in dense)
-  double alltoall_mdl_init[] = {1.0000E-06, 1.0000E-06, 5.0000E-10};        // not used I guess
+  double alltoall_mdl_init[] = {1.0000E-09, 1.0000E-09, 2.320E-8};        // used for all2all estimate in node-aware
   double alltoallv_mdl_init[] = {7.3164E-23, 1.0404E-04, 2.5827E-07};       // not used I guess
   double red_mdl_init[] = {4.5530E-11, 3.0466E-17, 2.5E-9}; // mpi_reduce, used for summa for moving C 
   double red_mdl_cst_init[] = {1.2881E-04, 1.4093E-16, 8.3976E-10};         // not used I guess
   double allred_mdl_init[] = {4.7939E-14, 7.4715E-13, 2.0949E-06}; // de-facto not used I guess
   double allred_mdl_cst_init[] = {-3.3754E-04, 2.1343E-04, 3.0801E-09};     // not used I guess
-  double bcast_mdl_init[] = {1.1115E-16, 1.0754E-16, 1.32E-9}; //mpi_bcast, used for summa for bcasting A,B, 3rd parameter is around 0.7 GB/s
+  double bcast_mdl_init[] = {1.1115E-16, 1.0754E-16, 3.1E-9}; //mpi_bcast, used for summa for bcasting A,B, 3rd parameter is around 0.3 GB/s
   double seq_tsr_ctr_mdl_cst_init[] = {7.8076E-13, 6.9558E-08, 1.3923E-08}; // not used I guess
   double seq_tsr_ctr_mdl_ref_init[] = {4.9138E-08, 5.8290E-10, 4.8575E-11}; // not used I guess
   double seq_tsr_ctr_mdl_inr_init[] = {6.0166E-21, 2.3443E-10, 1.4286E-11}; // used model, 3rd paramter corresponds to 70GFLOPS/s/core, 2nd parameter set!

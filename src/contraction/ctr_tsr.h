@@ -31,6 +31,7 @@ namespace CTF_int {
       int64_t mem_rec();
 
       double est_time_rec(int nlyr);
+      double est_comm_time(int nlyr);
       ctr * clone();
     
       /**
@@ -117,6 +118,7 @@ namespace CTF_int {
       uint64_t est_membw();
       double est_time_rec(int nlyr);
       double est_time_fp(int nlyr);
+      double est_comm_time(int nlyr);
       ctr * clone();
 
       /**

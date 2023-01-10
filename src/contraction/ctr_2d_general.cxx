@@ -262,6 +262,10 @@ namespace CTF_int {
     return rec_ctr->est_time_rec(1)*(double)edge_len/MIN(nlyr,edge_len) + est_time_fp(nlyr);
   }
 
+  double ctr_2d_general::est_comm_time(int nlyr) {
+    return rec_ctr->est_comm_time(1)*(double)edge_len/MIN(nlyr,edge_len) + est_time_fp(nlyr);
+  }
+
   double ctr_2d_general::est_internode_collective_comm_vol(int nlyr) {
     int64_t b_A, b_B, b_C, s_A, s_B, s_C, aux_size;
     find_bsizes(b_A, b_B, b_C, s_A, s_B, s_C, aux_size);

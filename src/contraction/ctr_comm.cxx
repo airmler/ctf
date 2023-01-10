@@ -193,6 +193,11 @@ namespace CTF_int {
     return rec_ctr->est_time_rec(nlyr) + est_time_fp(nlyr);
   }
 
+  double ctr_replicate::est_comm_time(int nlyr) {
+    return rec_ctr->est_comm_time(nlyr) + est_time_fp(nlyr);
+  }
+
+
   double ctr_replicate::est_internode_collective_comm_vol(int nlyr) {
     int i;
     double sz = 0.;

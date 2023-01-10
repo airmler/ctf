@@ -369,7 +369,7 @@ namespace CTF_int {
   }
 
   double CommData::estimate_red_time(int64_t msg_sz, MPI_Op op){
-    double ps[] = {1.0, log2((double)np), (double)msg_sz*log2((double)(np))};
+    double ps[] = {1.0, log2((double)np), (double)msg_sz};
     if (op >= MPI_MAX && op <= MPI_REPLACE)
       return red_mdl.est_time(ps);
     else
