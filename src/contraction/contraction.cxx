@@ -4453,10 +4453,6 @@ namespace CTF_int {
         C->topo->morph_to(na_topo_i);
 
         double comm_vol_i = ctrf->est_internode_comm_vol_rec(ctrf->num_lyr);
-        if (!global_comm.rank) {
-          for (int j=0; j < orig_topo.order; j++) printf("%d ", inter_node_grids[i][j]);
-          printf("-> %f\n", comm_vol_i/1024.0/1024.0/1024.0);
-        }
         if (comm_vol_i < best_comm_vol){
           best_topo_index = i;
           best_comm_vol = comm_vol_i;
@@ -4465,20 +4461,25 @@ namespace CTF_int {
       }
       TAU_FSTOP(node_aware_remapping_calc);
       double comm_vol_nn = ctrf->est_internode_comm_vol_rec(ctrf->num_lyr);
-      if (!global_comm.rank) printf("Ref: %f\n", comm_vol_nn/1024.0/1024.0/1024.0);
 
       if (best_comm_vol < comm_vol_nn) enable_node_aware = 1;
+      if (!global_comm.rank) {
+        printf( "We found a better na-distribution: ref: %f opt: %f\n"
+              , comm_vol_nn/1024./1024./1024, best_comm_vol/1024./1024./1024.);
+        for (int j=0; j < orig_topo.order; j++) printf("%d ", inter_node_grids[best_topo_index][j]);
+      }
       double bcast_comm_time = ctrf->est_comm_time(ctrf->num_lyr);
       double all2allVolume = A->sr->el_size * (A->size + B->size + C->size * 2.0);
       double all2all_comm_time = global_comm.estimate_alltoall_time(all2allVolume);
-      //if (!global_comm.rank)
-      //  printf("This is the total bcast time, bro %lf\n", bcast_comm_time);
-      //if (!global_comm.rank)
-      //  printf("This is the a2a time, bro %lf\n", all2all_comm_time);
       if (all2all_comm_time * 2.0 > bcast_comm_time) {
-        enable_node_aware = 1; // We still do node-awareness just to get the timings of it
+        enable_node_aware = 0;
         if (!global_comm.rank)
           printf("Do not use node-awareness: overhead. 2 * %lf > %lf\n", all2all_comm_time, bcast_comm_time);
+      }
+      bool enforce_node_aware = true;
+      if (enforce_node_aware) {
+        if (!global_comm.rank) printf("Although not optimal, we use node aware anyways!\n");
+        enable_node_aware = 1;
       }
       if (enable_node_aware) {
         for (int j=0; j<orig_topo.order; j++){

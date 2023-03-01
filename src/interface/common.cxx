@@ -386,7 +386,7 @@ namespace CTF_int {
 
 
   double CommData::estimate_alltoall_time(int64_t chunk_sz) {
-    double ps[] = {1.0, log2((double)np), log2((double)np)*np*chunk_sz};
+    double ps[] = {1.0, log2((double)np), chunk_sz};
     return alltoall_mdl.est_time(ps);
   }
 
