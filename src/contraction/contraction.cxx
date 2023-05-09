@@ -4463,22 +4463,22 @@ namespace CTF_int {
       double comm_vol_nn = ctrf->est_internode_comm_vol_rec(ctrf->num_lyr);
 
       if (best_comm_vol < comm_vol_nn) enable_node_aware = 1;
-      if (!global_comm.rank) {
-        printf( "We found a better na-distribution: ref: %f opt: %f\n"
-              , comm_vol_nn/1024./1024./1024, best_comm_vol/1024./1024./1024.);
-        for (int j=0; j < orig_topo.order; j++) printf("%d ", inter_node_grids[best_topo_index][j]);
-      }
+      //if (!global_comm.rank) {
+      //  printf( "We found a better na-distribution: ref: %f opt: %f\n"
+      //        , comm_vol_nn/1024./1024./1024, best_comm_vol/1024./1024./1024.);
+      //  for (int j=0; j < orig_topo.order; j++) printf("%d ", inter_node_grids[best_topo_index][j]);
+      //}
       double bcast_comm_time = ctrf->est_comm_time(ctrf->num_lyr);
       double all2allVolume = A->sr->el_size * (A->size + B->size + C->size * 2.0);
       double all2all_comm_time = global_comm.estimate_alltoall_time(all2allVolume);
       if (all2all_comm_time * 2.0 > bcast_comm_time) {
         enable_node_aware = 0;
-        if (!global_comm.rank)
-          printf("Do not use node-awareness: overhead. 2 * %lf > %lf\n", all2all_comm_time, bcast_comm_time);
+      //  if (!global_comm.rank)
+      //    printf("Do not use node-awareness: overhead. 2 * %lf > %lf\n", all2all_comm_time, bcast_comm_time);
       }
-      bool enforce_node_aware = true;
+      bool enforce_node_aware = false;
       if (enforce_node_aware) {
-        if (!global_comm.rank) printf("Although not optimal, we use node aware anyways!\n");
+        //if (!global_comm.rank) printf("Although not optimal, we use node aware anyways!\n");
         enable_node_aware = 1;
       }
       if (enable_node_aware) {
