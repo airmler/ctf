@@ -1,5 +1,6 @@
 #m, n, k == matrix dimensions; type: w1/w2/s2 = weak18/weak180/strong; 
 #grid: rank-grid used in ScaLAPACK
+#nodes  m       n       k    type     CTF-def   CTF-na   ScaLAPACK   COSUMA-unl  COSMA-lim   grid
   1    2844   28440    2844   w1      20.69      21.00      21.62      32.19      26.02	 |     8   9
   2    4022   40220    4022   w1      22.38      19.64      23.48      31.88      24.30	 |    12  12
   3    4926   49260    4926   w1      16.95      18.10      22.35      28.52      19.87	 |    12  18
