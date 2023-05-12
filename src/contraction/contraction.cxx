@@ -4476,9 +4476,10 @@ namespace CTF_int {
 
       if (best_comm_vol < comm_vol_nn) enable_node_aware = 1;
       if (!global_comm.rank && na_verbose) {
-        printf( "We found a better na-distribution: ref: %f opt: %f\n"
+        printf( "We found a better na-distribution: ref: %f opt: %f :  "
               , comm_vol_nn/1024./1024./1024, best_comm_vol/1024./1024./1024.);
         for (int j=0; j < orig_topo.order; j++) printf("%d ", inter_node_grids[best_topo_index][j]);
+        printf("\n");
       }
       double bcast_comm_time = ctrf->est_comm_time(ctrf->num_lyr);
       double all2allVolume = A->sr->el_size * (A->size + B->size + C->size * 2.0);
@@ -4489,7 +4490,7 @@ namespace CTF_int {
           printf("Do not use node-awareness: overhead. 2 * %lf > %lf\n", all2all_comm_time, bcast_comm_time);
       }
       if (enforce_node_aware) {
-        if (!global_comm.rank && na_verbose) printf("Enforce node awareness: Although not optimal, we use node aware anyways!\n");
+        if (!global_comm.rank && na_verbose) printf("Enforce node awareness: Even if not optimal, we use node aware anyways!\n");
         enable_node_aware = 1;
       }
       if (enable_node_aware) {
