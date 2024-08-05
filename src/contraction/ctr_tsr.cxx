@@ -458,7 +458,7 @@ namespace CTF_int {
         if (inner_params.offload)
           return seq_tsr_ctr_mdl_off.est_time(ps);
         else
-          return seq_tsr_ctr_mdl_inr.est_time(ps)*fac;
+          return seq_tsr_ctr_mdl_inr.est_time(ps);
       }
     } else
       return seq_tsr_ctr_mdl_ref.est_time(ps);
@@ -501,6 +501,7 @@ namespace CTF_int {
 
     if (!sr) return;
 #endif
+
     if (is_custom && !is_inner){
       double st_time = MPI_Wtime();
       ASSERT(is_inner == 0);

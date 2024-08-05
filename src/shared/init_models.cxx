@@ -16,7 +16,7 @@ namespace CTF_int{
   double seq_tsr_ctr_mdl_cst_off_init[] = {8.4844E-04, 5.9246E-11, 3.5247E-10};
   double long_contig_transp_mdl_init[] = {0.0, 1.25E-08};
   double shrt_contig_transp_mdl_init[] = {0.0, 1.25E-08};
-  double non_contig_transp_mdl_init[] = {2.6680E-05, 4.6247E-06};
+  double non_contig_transp_mdl_init[] = {2.6680E-05, 8.6247E-08};
   double seq_tsr_spctr_cst_off_k0_init[] = {5.3745E-06, 3.6464E-08, 2.2334E-10};
   double seq_tsr_spctr_cst_off_k1_init[] = {5.3745E-06, 3.6464E-08, 2.2334E-10};
   double seq_tsr_spctr_cst_off_k2_init[] = {2.1996E-04, 3.1883E-09, 3.8743E-11};
