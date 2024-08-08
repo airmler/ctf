@@ -6,6 +6,8 @@
   * \brief Executes a set of different contractions on different processor counts to train model parameters
   */
 
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <ctf.hpp>
 #define TEST_SUITE
 #include "../examples/ccsd.cxx"
@@ -27,12 +29,12 @@ struct Ccsd_dimensions {
 Ccsd_dimensions get_ccsd_dimensions(double mem_per_core, int64_t nvfac, World &dw) {
   int np;
   MPI_Comm_size(dw.comm, &np);
-  int64_t No(10); 
+  int64_t No(10);
   while ( No*No*No*No*nvfac*nvfac*8./np/1024/1024 < mem_per_core) No++;
   return Ccsd_dimensions({No, No*nvfac, No, (int64_t) No*nvfac*2.5});
 }
 
-void ph_contraction(int64_t No, int64_t Nv, World &dw) {
+void ph1_contraction(int64_t No, int64_t Nv, World &dw) {
   int64_t vvoo[] = {Nv, Nv, No, No};
   int syms[] = {NS, NS, NS, NS};
   CTF::Tensor< double > T(4, vvoo, syms, dw, "T");
@@ -41,6 +43,18 @@ void ph_contraction(int64_t No, int64_t Nv, World &dw) {
   V.fill_random(0, 1);
   T.fill_random(0, 1);
   R["abij"] = T["acik"] * V["cbkj"];
+}
+
+void ph2_contraction(int64_t No, int64_t Nv, World &dw) {
+  int64_t vvoo[] = {Nv, Nv, No, No};
+  int64_t ovvo[] = {No, Nv, Nv, No};
+  int syms[] = {NS, NS, NS, NS};
+  CTF::Tensor< double > T(4, vvoo, syms, dw, "T");
+  CTF::Tensor< double > V(4, ovvo, syms, dw, "V");
+  CTF::Tensor< double > R(4, vvoo, syms, dw, "R");
+  V.fill_random(0, 1);
+  T.fill_random(0, 1);
+  R["abij"] = T["acik"] * V["kbcj"];
 }
 
 void ggv_contraction(int64_t Nv, int64_t Nx, int64_t Ng, World &dw) {
@@ -68,34 +82,32 @@ void rvt_contraction(int64_t No, int64_t Nv, int64_t Nx, World &dw) {
 
 void train_ccsd(World & dw, double mem_per_core, int64_t nvfac, int c_id){
   auto dim = get_ccsd_dimensions(mem_per_core, nvfac, dw);
-  if (c_id & 1) ph_contraction(dim.No, dim.Nv, dw);
-  if (c_id & 2) ggv_contraction(dim.Nv, dim.Nx, dim.Ng, dw); 
-  if (c_id & 4) rvt_contraction(dim.No, dim.Nv, dim.Nx, dw); 
+  if (c_id & 1) ph1_contraction(dim.No, dim.Nv, dw);
+  if (c_id & 2) ph2_contraction(dim.No, dim.Nv, dw);
+  if (c_id & 4) ggv_contraction(dim.Nv, dim.Nx, dim.Ng, dw);
+  if (c_id & 8) rvt_contraction(dim.No, dim.Nv, dim.Nx, dw);
 }
 
 
 
-void train_all(std::string dump_file){
-  World dw(MPI_COMM_WORLD);
+void train_all(std::string dump_path, int num_iterations, int rounds, int ppn){
+  World dw("hallo", 0, ppn);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-
-  // number of iterations for training
-  int num_iterations = 2, rounds = 2;
 
   for (int i=0; i<num_iterations; i++){
     if (rank == 0){
       printf("Starting iteration %d/%d\n", i+1,num_iterations);
     }
     for (int j(0); j < rounds; j++) {
-      train_ccsd(dw, 10.,  8, 7);
-      train_ccsd(dw, 10., 12, 7);
-      train_ccsd(dw, 25.,  8, 7);
-      train_ccsd(dw, 25., 12, 7);
-      train_ccsd(dw, 25., 16, 7);
+      train_ccsd(dw, 10.,  8, 15);
+      train_ccsd(dw, 10., 12, 15);
+      train_ccsd(dw, 25.,  8, 15);
+      train_ccsd(dw, 25., 12, 15);
+      train_ccsd(dw, 25., 16, 15);
       CTF_int::update_all_models(dw.comm);
-      if (rank == 0) printf("Completed training round %d/%d\n", j, rounds);
+      if (rank == 0) printf("Completed training round %d/%d\n", j+1, rounds);
     }
   }
 
@@ -103,7 +115,7 @@ void train_all(std::string dump_file){
 //  CTF_int::write_all_models(coeff_file);
   if (rank == 0) CTF_int::print_all_models();
 
-  if (dump_file.size()) CTF_int::dump_touched_models(dump_file);
+  if (dump_path.size()) CTF_int::dump_touched_models(dump_path);
 
 }
 
@@ -127,18 +139,25 @@ int main(int argc, char ** argv){
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &np);
 
-
-  // Boolean expression that are used to pass command line argument to function train_all
-  std::string dump_file = "./data";
-
-  {
-    World dw(MPI_COMM_WORLD, argc, argv);
-
-    if (rank == 0){
-      printf("we train\n");
-    }
-    train_all(dump_file);
+  std::string dump_path("./data");
+  int iterations(3), rounds(3), ppn(0);
+  if (getCmdOption(input_str, input_str+in_num, "-write")){
+    dump_path = getCmdOption(input_str, input_str+in_num, "-write");
   }
+  if (getCmdOption(input_str, input_str+in_num, "-ppn")){
+    ppn = atoi(getCmdOption(input_str, input_str+in_num, "-ppn"));
+  }
+
+  struct stat info;
+  if (!rank) {
+    if(!stat( dump_path.c_str(), &info ) != 0 ) {
+      printf( "Warning: dumping data into existing directory %s.\n", dump_path.c_str() );
+    } else {
+      mkdir(dump_path.c_str(), 0777);
+    }
+    printf("we train\n");
+  }
+  train_all(dump_path, iterations, rounds, ppn);
 
 
   MPI_Finalize();
