@@ -112,7 +112,6 @@ namespace CTF_int {
     //if (A->wrld->cdt.cm == MPI_COMM_WORLD){
 //      update_all_models(A->wrld->cdt.cm);
     //}
-   
     int stat = home_contract();
     if (stat != SUCCESS){
       printf("CTF ERROR: Failed to perform contraction\n");
@@ -2952,7 +2951,7 @@ namespace CTF_int {
         est_time = memuse;
 #endif
         ASSERT(est_time >= 0.0);
-        if (A->wrld->dryRanks) printf( "topo %d order %d will use %f GB per rank and take %f s, %f %f %f\n"
+        if (A->wrld->dryRanks) printf( "topo %d order %d will use %f GB per rank and take %f s (%f %f %f, redist/contraction/folding)\n"
                                      , i, j, memuse/1024.0/1024./1024, est_time, redist_time, contr_time, fold_time);
 
 
@@ -3094,7 +3093,7 @@ namespace CTF_int {
       A->set_padding();
       B->set_padding();
       C->set_padding();
-      if (gbest_time_sel < 1e100){
+      if (gbest_time_sel > 1e100){
         gbest_time_exh = gbest_time_sel+1.;
         ttopo_exh = ttopo_sel;
       } else {
@@ -3228,7 +3227,7 @@ namespace CTF_int {
       int64_t memuse;
       double est_time, redist_time, contr_time, fold_time;
       detail_estimate_mem_and_time(dA, dB, dC, old_topo_A, old_topo_B, old_topo_C, old_map_A, old_map_B, old_map_C, nnz_frac_A, nnz_frac_B, nnz_frac_C, memuse, est_time, redist_time, contr_time, fold_time);
-      printf( "Contraction will use %f GB per rank and take %f s, %f %f %f\n"
+      printf( "Contraction will use %f GB per rank and take %f s (%f %f %f, redist/contraction/folding)\n"
             , memuse/1024.0/1024./1024, est_time, redist_time, contr_time, fold_time);
     }
 
@@ -4421,10 +4420,11 @@ namespace CTF_int {
 
 
   if (A->wrld->dryRanks){
+// iran: this is the silent version
     A->print_map();
     B->print_map();
     C->print_map();
-    ctrf->print();
+    //ctrf->print();
 #define NODE_AWARE 1
 #ifdef NODE_AWARE
     if (C->wrld->ppn){
@@ -5334,7 +5334,6 @@ namespace CTF_int {
         return SUCCESS;
       }
     }
-
     contraction new_ctr = contraction(*this);
 
     was_home_A = A->is_home;
@@ -5403,6 +5402,7 @@ namespace CTF_int {
     }
 
     ret = new_ctr.sym_contract();//&ntype, ftsr, felm, alpha, beta);
+
     if (ret!= SUCCESS) return ret;
     if (C->wrld->dryRanks) return SUCCESS;
     if (was_home_C) new_ctr.C->unfold();

@@ -53,6 +53,14 @@ namespace CTF_int {
 #endif
   }
 
+  void dump_touched_models(std::string path){
+#ifdef TUNE
+    for (int i=0; i<(int)get_all_models().size(); i++){
+      get_all_models()[i]->dump_data(path, true);
+    }
+#endif
+  }
+
 #define SPLINE_CHUNK_SZ = 8
 
   double cddot(int n,       const double *dX,
@@ -245,7 +253,7 @@ namespace CTF_int {
     //if (nobs % tune_interval == 0){
 
     //define the number of cols in the matrix to be the min of the number of observations and
-    //the number we are willing to store (hist_size)
+    //the number we are willing to store ( {}hist_size)
     int nrcol = std::min(nobs,(int64_t)hist_size);
     //max of the number of local observations and nparam (will usually be the former)
     int ncol = std::max(nrcol, nparam);
@@ -697,11 +705,12 @@ namespace CTF_int {
   }
 
   template <int nparam>
-  void LinModel<nparam>::dump_data(std::string path){
+  void LinModel<nparam>::dump_data(std::string path, bool dump_only_touched){
     int rank = 0;
     int np, my_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &np);
+/*
     while(rank < np){
         if (rank == my_rank){
         // Open the file
@@ -721,6 +730,7 @@ namespace CTF_int {
         int num_records = std::min(nobs, (int64_t)hist_size);
         for(int i=0; i<num_records; i++){
             std::string instance = "";
+           ofs << i << " ";
            for(int j=0; j<mat_lda; j++){
              ofs<<time_param_mat[i*mat_lda+j]<<" ";
            }
@@ -731,6 +741,48 @@ namespace CTF_int {
       rank++;
       MPI_Barrier(MPI_COMM_WORLD);
     }
+*/
+    int num_records = std::min(nobs, (int64_t)hist_size);
+    bool dump = true;
+    if (dump_only_touched) dump = (bool) num_records;
+    std::vector<double> local_times(num_records), max_times(local_times);
+    int min_records(0), max_records(0);
+    for (int i=0; i < num_records; i++) {
+      local_times[i] = time_param_mat[i*mat_lda];
+    }
+    MPI_Allreduce(&num_records, &max_records, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+    MPI_Allreduce(&num_records, &min_records, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+    assert(max_records == min_records);
+    if (max_records > 0 && max_records == min_records) {
+      MPI_Reduce(local_times.data(), max_times.data(), num_records, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+      if (!my_rank && dump) {
+        // Open the file
+        std::ofstream ofs;
+        std::string model_name = std::string(name);
+        ofs.open(path+"/"+model_name, std::ofstream::out | std::ofstream::app);
+
+        // Dump the model coeffs
+        ofs << "Coeff: ";
+        for(int i=0; i<nparam; i++){
+          ofs << coeff_guess[i] << " ";
+        }
+        ofs << std::endl;
+
+
+        // Dump the training data
+        int num_records = std::min(nobs, (int64_t)hist_size);
+        for(int i=0; i<num_records; i++){
+          std::string instance = "";
+          ofs << max_times[i];
+          for(int j=1; j<mat_lda; j++){
+            ofs << " " << time_param_mat[i*mat_lda+j];
+          }
+          ofs<<"\n";
+        }
+        ofs.close();
+      }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
   }
 
 
@@ -832,7 +884,7 @@ namespace CTF_int {
   }
 
   template <int nparam>
-  void CubicModel<nparam>::dump_data(std::string path){
+  void CubicModel<nparam>::dump_data(std::string path, bool dump_only_touched){
     lmdl.dump_data(path);
   }
 
